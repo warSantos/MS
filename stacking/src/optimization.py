@@ -15,7 +15,7 @@ from sklearn.model_selection import StratifiedKFold
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
-from models import get_classifier
+from src.models import get_classifier
 
 
 def execute_optimization(

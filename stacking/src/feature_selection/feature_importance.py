@@ -5,7 +5,7 @@ from sklearn.ensemble import RandomForestClassifier
 
 path.append("../")
 
-from optimization import execute_optimization
+from src.optimization import execute_optimization
 
 RANDOM_STATE = 42
 

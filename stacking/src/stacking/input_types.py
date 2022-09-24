@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from scipy import sparse
 
-from files import read_train_test_meta, load_x_y
+from src.files import read_train_test_meta, load_x_y
 
 def fix_nan_inf_values(a):
 
