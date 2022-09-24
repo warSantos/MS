@@ -54,7 +54,7 @@ def load_y(
         sp_settings: str
 ) -> Tuple[np.ndarray, np.ndarray]:
 
-    labels_dir = f"{data_source}/labels/{sp_settings}/{dataset}/{fold}"
+    labels_dir = f"{data_source}/datasets/labels/{sp_settings}/{dataset}/{fold}"
     y_train = np.load(f"{labels_dir}/train.npy")
     y_test = np.load(f"{labels_dir}/test.npy")
 

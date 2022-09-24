@@ -14,14 +14,14 @@ from sklearn.metrics import f1_score
 
 # Loading basic settings of the envirioment.
 try:
-    fd = open("data/setups/settings.json", 'r')
+    fd = open("data/settings.json", 'r')
     settings = json.load(fd)
 except:
     traceback.print_exc()
     print("Was not possible to read basic enviorioment settings.")
     exit(1)
 
-DIR_PROJECT = settings["DIR_PROJECT"]
+DATA_SOURCE = settings["DATA_SOURCE"]
 
 from src.constants import IDS_MODELS
 from src.files import load_x_y, read_train_test_meta, read_train_test_bert, load_y
@@ -35,20 +35,16 @@ warnings.simplefilter("ignore")
 os.environ["PYTHONWARNINGS"] = "ignore"  # Also affect sub-processes
 
 # Directories and files
-MFS_DIR = settings["MFS_DIR"]
-
-DIR_META_INPUT = f"{DIR_PROJECT}/data/meta_layer_input"
-DIR_CLS_INPUT = f"{DATA_SOURCE}/classification_input"
-
-DIR_OUTPUT = f"{DIR_PROJECT}/data/stacking_output"
-DIR_META_INFO = f"{DIR_PROJECT}/meta_info/datasets"
+MFS_DIR = f"{DATA_SOURCE}/meta_features"
+DIR_META_INPUT = f"{DATA_SOURCE}/data/clfs_output"
+DIR_OUTPUT = f"{DATA_SOURCE}/stacking/stacking_output"
 
 # Execution configs
 MODELS = list(IDS_MODELS.values())  # All 18 models
 
 # Loading basic settings of the envirioment.
 try:
-    fd = open("../../data/setups/execution.json", 'r')
+    fd = open("data/execution.json", 'r')
     execution = json.load(fd)
 except:
     traceback.print_exc()
@@ -74,11 +70,6 @@ if __name__ == "__main__":
         print(f"[{meta_layer.upper()} / {meta_feature.upper()}] - {dataset.upper():10s} - fold_{fold_id}")
     
         # Reading classification labels.
-        #file_train_cls = f"{DIR_CLS_INPUT}/{dataset}/{N_FOLDS}_folds/tr/{fold_id}/train.npz"
-        #file_test_cls = f"{DIR_CLS_INPUT}/{dataset}/{N_FOLDS}_folds/tr/{fold_id}/test.npz"
-        #_, y_train = load_x_y(file_train_cls, "train")
-        #_, y_test = load_x_y(file_test_cls, "test")
-
         y_train, y_test = load_y(DATA_SOURCE, dataset, fold_id, SPLIT_SETTINGS)
         
         dir_dest = f"{DIR_OUTPUT}/{dataset}/{N_FOLDS}_folds/"
@@ -88,7 +79,7 @@ if __name__ == "__main__":
             X_train, X_test = read_train_test_meta(DIR_META_INPUT, dataset, N_FOLDS, fold_id, MODELS)
         elif BERT_STACKING:
             X_train, X_test = read_train_test_bert(DATA_SOURCE, dataset, BERT_STACKING, N_FOLDS, fold_id)
-            dir_dest += f"{SPLIT_SETTINGS}/bert_base/fine_tuning/{fold_id}"
+            dir_dest += f"{SPLIT_SETTINGS}/{meta_feature}/{fold_id}"
         # If is there any MF to load.
         elif META_FEATURES:
             meta_feature_path = f"{MFS_DIR}/{meta_feature}"
@@ -106,6 +97,7 @@ if __name__ == "__main__":
         else:
             raise ValueError(f"Invalid value ({meta_feature}) for type_input.")
 
+        print(dir_dest)
         # Verify if feature selection must be applied.
         nf = 18 * len(set(y_train))
         if num_feats > -1:
