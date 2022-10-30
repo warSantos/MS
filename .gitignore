@@ -16,7 +16,7 @@ data
 *.py[cod]
 *$py.class
 .idea
-
+*__init__.py
 # C extensions
 *.so
 

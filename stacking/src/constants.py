@@ -45,3 +45,6 @@ IDS_MODELS = {
     "xlnet": "xlnet",
     "bert": "bert"
 }
+
+REP_CLFS = ["rep_bert", "sfr", "lpr", "ltr", "xtmk"]
+MIX_REPS_MINUS_BERT = ["sfr", "lpr", "ltr", "xtmk"]

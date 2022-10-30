@@ -38,9 +38,13 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.svm import SVC
 
 # Redes neurais
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
-import tensorflow as tf
-from tensorflow import keras
+#os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+#import tensorflow as tf
+#from tensorflow import keras
+# Configs Tensorflow
+#tf.get_logger().setLevel("ERROR")
+#print(tf.__version__)
+#print(tf.config.list_physical_devices())
 
 # Configs Optuna
 from optuna.exceptions import ExperimentalWarning
@@ -48,11 +52,6 @@ from optuna.logging import set_verbosity, WARNING
 
 set_verbosity(WARNING)
 warnings.filterwarnings("ignore", category=ExperimentalWarning)
-
-# Configs Tensorflow
-tf.get_logger().setLevel("ERROR")
-print(tf.__version__)
-print(tf.config.list_physical_devices())
 
 # Configs Outras Libs
 pd.set_option("display.max_colwidth", 200)

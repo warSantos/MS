@@ -15,6 +15,10 @@ def load_x_y(
     loaded = np.load(file, allow_pickle=True)
 
     X = loaded[f"X_{test_train}"]
+    
+    if f"y_{test_train}" not in loaded:
+        return X, None
+
     y = loaded[f"y_{test_train}"]
 
     if X.size == 1:
@@ -59,6 +63,40 @@ def load_y(
     y_test = np.load(f"{labels_dir}/test.npy")
 
     return y_train, y_test
+
+def read_train_test_meta_oracle(
+        dir_meta_input: str,
+        dataset: str,
+        n_folds: int,
+        fold_id: int,
+        algorithms: List[str],
+        oracle_path: str,
+        oracle_strategy: str
+) -> Tuple[np.ndarray, np.ndarray]:
+    Xs_train, Xs_test = [], []
+
+    for alg in algorithms:
+        file_train_meta = f"{dir_meta_input}/{dataset}/{n_folds}_folds/{alg}/{fold_id}/train.npz"
+        file_test_meta = f"{dir_meta_input}/{dataset}/{n_folds}_folds/{alg}/{fold_id}/test.npz"
+
+        X_train_meta, _ = load_x_y(file_train_meta, 'train')
+        X_test_meta, _ = load_x_y(file_test_meta, 'test')
+        
+        oracle_base_dir = f"{oracle_path}/{oracle_strategy}/{dataset}/{alg}/{fold_id}"
+        oracle_file_train = f"{oracle_base_dir}/train.npz"
+        oracle_file_test = f"{oracle_base_dir}/test.npz"
+
+        oracle_train = np.load(oracle_file_train)['y']
+        oracle_test = np.load(oracle_file_test)['y']
+
+        Xs_train.append(X_train_meta * oracle_train[:, None])
+        Xs_test.append(X_test_meta * oracle_test[:, None])
+
+    X_train_meta = np.hstack(Xs_train)
+    X_test_meta = np.hstack(Xs_test)
+
+    return X_train_meta, X_test_meta
+
 
 def read_train_test_bert(
         data_source: str,

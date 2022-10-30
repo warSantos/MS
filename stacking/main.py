@@ -1,6 +1,5 @@
 # Python libraries
 import os
-import sys
 import json
 import warnings
 import itertools
@@ -23,8 +22,13 @@ except:
 
 DATA_SOURCE = settings["DATA_SOURCE"]
 
-from src.constants import IDS_MODELS
-from src.files import load_x_y, read_train_test_meta, read_train_test_bert, load_y
+from src.constants import IDS_MODELS, REP_CLFS, MIX_REPS_MINUS_BERT
+from src.files import (
+                        read_train_test_meta,
+                        read_train_test_bert,
+                        load_y,
+                        read_train_test_meta_oracle
+                    )
 from src.stacking.input_types import read_mfs
 from src.optimization import execute_optimization
 from src.feature_selection.feature_importance import FeatureSelector
@@ -36,7 +40,6 @@ os.environ["PYTHONWARNINGS"] = "ignore"  # Also affect sub-processes
 
 # Directories and files
 MFS_DIR = f"{DATA_SOURCE}/meta_features"
-DIR_META_INPUT = f"{DATA_SOURCE}/data/clfs_output"
 DIR_OUTPUT = f"{DATA_SOURCE}/stacking/stacking_output"
 
 # Execution configs
@@ -61,8 +64,8 @@ WITH_PROBA = execution["WITH_PROBA"]
 MF_COMBINATION = execution["MF_COMBINATION"]
 NUM_FEATS = execution["NUM_FEATS"]
 BERT_STACKING = execution["BERT_STACKING"]
-DATA_SOURCE = execution["DATA_SOURCE"]
 SPLIT_SETTINGS = execution["SPLIT_SETTINGS"]
+DIR_META_INPUT = f"{DATA_SOURCE}/clfs_output/{SPLIT_SETTINGS}"
 
 if __name__ == "__main__":
     iterations = itertools.product(META_FEATURES, META_LAYERS, DATASETS, NUM_FEATS, range(N_FOLDS))
@@ -77,17 +80,33 @@ if __name__ == "__main__":
         # Reading meta-layer input
         if meta_feature == "proba":
             X_train, X_test = read_train_test_meta(DIR_META_INPUT, dataset, N_FOLDS, fold_id, MODELS)
+            dir_dest += f"{meta_layer}/{meta_feature}/fold_{fold_id}"
+        elif meta_feature == "mix_reps":
+            X_train, X_test = read_train_test_meta(DIR_META_INPUT, dataset, N_FOLDS, fold_id, REP_CLFS)
+            dir_dest += f"{meta_layer}/{meta_feature}/fold_{fold_id}"
+        elif meta_feature == "mix_reps_without_bert":
+            X_train, X_test = read_train_test_meta(DIR_META_INPUT, dataset, N_FOLDS, fold_id, MIX_REPS_MINUS_BERT)
+            dir_dest += f"{meta_layer}/{meta_feature}/fold_{fold_id}"
+        elif meta_feature == "oracle_upper":
+            oracle_path = f"{DATA_SOURCE}/oracle"
+            X_train, X_test = read_train_test_meta_oracle(DIR_META_INPUT, 
+                                                            dataset,
+                                                            N_FOLDS,
+                                                            fold_id,
+                                                            REP_CLFS,
+                                                            oracle_path,
+                                                            "upper_bound")
+
+            dir_dest += f"{meta_layer}/{meta_feature}/fold_{fold_id}"
         elif BERT_STACKING:
             X_train, X_test = read_train_test_bert(DATA_SOURCE, dataset, BERT_STACKING, N_FOLDS, fold_id)
-            dir_dest += f"{SPLIT_SETTINGS}/{meta_feature}/{fold_id}"
+            dir_dest += f"/{SPLIT_SETTINGS}/{meta_feature}/{fold_id}"
         # If is there any MF to load.
         elif META_FEATURES:
             meta_feature_path = f"{MFS_DIR}/{meta_feature}"
             X_train, X_test = read_mfs(DIR_META_INPUT, meta_feature_path, dataset, N_FOLDS, fold_id, MODELS, MF_COMBINATION, load_proba=WITH_PROBA)
-            dir_dest = f"""
-            {DIR_OUTPUT}/
-            {dataset}/
-            {N_FOLDS}_folds/
+            dir_dest += f"""
+            {dir_dest}
             {meta_layer}/
             num_feats/{nf}/
             with_proba/{WITH_PROBA}/
@@ -97,7 +116,7 @@ if __name__ == "__main__":
         else:
             raise ValueError(f"Invalid value ({meta_feature}) for type_input.")
 
-        print(dir_dest)
+        print(f"[OUTPUT: {dir_dest}]")
         # Verify if feature selection must be applied.
         nf = 18 * len(set(y_train))
         if num_feats > -1:
@@ -116,7 +135,8 @@ if __name__ == "__main__":
             file_model,
             X_train,
             y_train,
-            opt_n_jobs=N_JOBS
+            opt_n_jobs=N_JOBS,
+            load_model=False
         )
 
         # Prediction
