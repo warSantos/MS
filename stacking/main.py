@@ -87,7 +87,7 @@ if __name__ == "__main__":
         elif meta_feature == "mix_reps_without_bert":
             X_train, X_test = read_train_test_meta(DIR_META_INPUT, dataset, N_FOLDS, fold_id, MIX_REPS_MINUS_BERT)
             dir_dest += f"{meta_layer}/{meta_feature}/fold_{fold_id}"
-        elif meta_feature == "oracle_upper":
+        elif meta_feature in ["upper_bound", "upper_test", "upper_train"]:
             oracle_path = f"{DATA_SOURCE}/oracle"
             X_train, X_test = read_train_test_meta_oracle(DIR_META_INPUT, 
                                                             dataset,
@@ -95,9 +95,15 @@ if __name__ == "__main__":
                                                             fold_id,
                                                             REP_CLFS,
                                                             oracle_path,
-                                                            "upper_bound")
+                                                            meta_feature)
 
             dir_dest += f"{meta_layer}/{meta_feature}/fold_{fold_id}"
+        elif meta_feature == "encoder":
+            feat_dir = f"{DATA_SOURCE}/oracle/{meta_feature}/{dataset}/all_clfs/{fold_id}"
+            X_train = np.load(f"{feat_dir}/train.npz")["X_train"]
+            X_test = np.load(f"{feat_dir}/test.npz")["X_test"]
+            dir_dest += f"{meta_layer}/{meta_feature}/fold_{fold_id}"
+
         elif BERT_STACKING:
             X_train, X_test = read_train_test_bert(DATA_SOURCE, dataset, BERT_STACKING, N_FOLDS, fold_id)
             dir_dest += f"/{SPLIT_SETTINGS}/{meta_feature}/{fold_id}"
