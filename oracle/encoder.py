@@ -31,7 +31,7 @@ class DatasetCent(Dataset):
     
 class EconderArchitecture(nn.Module):
 
-	def __init__(self, input_size, hidden_layers=1, output_layer="linear"):
+	def __init__(self, input_size, hidden_layers=3, output_layer="linear"):
 
 		super().__init__()
 
@@ -41,11 +41,10 @@ class EconderArchitecture(nn.Module):
 
 		for i in range(hidden_layers):
 			self.encoder.append(nn.Linear(self.input_size, self.output_size))
+			self.encoder.append(nn.ReLU())
 
-		if output_layer == "tanh":
-			self.encoder.append(nn.Tanh())
-		else:
-			self.encoder.append(nn.Linear(self.input_size, self.output_size))
+		self.encoder.append(nn.Linear(self.input_size, self.output_size))
+		self.encoder.append(nn.Sigmoid())
 
 
 	def forward(self, x):
@@ -63,9 +62,9 @@ class Encoder:
 		self.model = EconderArchitecture(
 			self.input_size, hidden_layers=hidden_layers).to(self.device)
 
-	def fit(self, data: DatasetCent, epochs=15, batch_size=32):
+	def fit(self, data: DatasetCent, epochs=80, batch_size=64):
 
-		criterion = nn.MSELoss()
+		criterion = nn.HuberLoss()
 		optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-3)
 
 		train_loader = DataLoader(
