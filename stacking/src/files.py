@@ -58,9 +58,9 @@ def load_y(
         sp_settings: str
 ) -> Tuple[np.ndarray, np.ndarray]:
 
-    labels_dir = f"{data_source}/datasets/labels/{sp_settings}/{dataset}/{fold}"
-    y_train = np.load(f"{labels_dir}/train.npy")
-    y_test = np.load(f"{labels_dir}/test.npy")
+    labels_dir = f"{data_source}/clfs_output/{sp_settings}/{dataset}/10_folds/ltr/{fold}"
+    y_train = np.load(f"{labels_dir}/train.npz")["y_train"]
+    y_test = np.load(f"{labels_dir}/test.npz")["y_test"]
 
     return y_train, y_test
 
@@ -97,6 +97,38 @@ def read_train_test_meta_oracle(
 
     return X_train_meta, X_test_meta
 
+def read_train_test_fix_one(
+        dir_meta_input: str,
+        dataset: str,
+        n_folds: int,
+        fold_id: int,
+        algorithms: List[str]
+) -> Tuple[np.ndarray, np.ndarray]:
+    Xs_train, Xs_test = [], []
+
+    y_true = np.load(f"{dir_meta_input}/{dataset}/{n_folds}_folds/lfr/{fold_id}/train.npz")["y_train"]
+    for alg in algorithms:
+        file_train_meta = f"{dir_meta_input}/{dataset}/{n_folds}_folds/{alg}/{fold_id}/train.npz"
+        file_test_meta = f"{dir_meta_input}/{dataset}/{n_folds}_folds/{alg}/{fold_id}/test.npz"
+
+        X_train_meta, _ = load_x_y(file_train_meta, 'train')
+        X_test_meta, _ = load_x_y(file_test_meta, 'test')
+
+        # Applying fix one.
+        preds = X_train_meta.argmax(axis=1)
+        missed = y_true != preds
+        for idx in np.arange(missed.shape[0]):
+            # If the classifier missed.
+            if missed[idx]:
+                X_train_meta[idx][preds[idx]] = 0
+
+        Xs_train.append(X_train_meta)
+        Xs_test.append(X_test_meta)
+
+    X_train_meta = np.hstack(Xs_train)
+    X_test_meta = np.hstack(Xs_test)
+
+    return X_train_meta, X_test_meta
 
 def read_train_test_bert(
         data_source: str,

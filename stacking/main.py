@@ -27,7 +27,8 @@ from src.files import (
                         read_train_test_meta,
                         read_train_test_bert,
                         load_y,
-                        read_train_test_meta_oracle
+                        read_train_test_meta_oracle,
+                        read_train_test_fix_one
                     )
 from src.stacking.input_types import read_mfs
 from src.optimization import execute_optimization
@@ -87,7 +88,7 @@ if __name__ == "__main__":
         elif meta_feature == "mix_reps_without_bert":
             X_train, X_test = read_train_test_meta(DIR_META_INPUT, dataset, N_FOLDS, fold_id, MIX_REPS_MINUS_BERT)
             dir_dest += f"{meta_layer}/{meta_feature}/fold_{fold_id}"
-        elif meta_feature in ["upper_bound", "upper_test", "upper_train"]:
+        elif meta_feature in ["upper_test"]:
             oracle_path = f"{DATA_SOURCE}/oracle"
             X_train, X_test = read_train_test_meta_oracle(DIR_META_INPUT, 
                                                             dataset,
@@ -98,6 +99,11 @@ if __name__ == "__main__":
                                                             meta_feature)
 
             dir_dest += f"{meta_layer}/{meta_feature}/fold_{fold_id}"
+        elif meta_feature == "fix_one":
+            oracle_path = f"{DATA_SOURCE}/oracle"
+            X_train, X_test = read_train_test_fix_one(DIR_META_INPUT, dataset, N_FOLDS, fold_id, MODELS)
+            dir_dest += f"{meta_layer}/{meta_feature}/fold_{fold_id}"
+            
         elif meta_feature == "encoder":
             feat_dir = f"{DATA_SOURCE}/oracle/{meta_feature}/{dataset}/all_clfs/{fold_id}"
             X_train = np.load(f"{feat_dir}/train.npz")["X_train"]
