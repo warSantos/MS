@@ -22,7 +22,7 @@ except:
 
 DATA_SOURCE = settings["DATA_SOURCE"]
 
-from src.constants import IDS_MODELS, REP_CLFS, MIX_REPS_MINUS_BERT
+from src.constants import IDS_MODELS, REP_CLFS, MIX_REPS_MINUS_BERT, NEW_CLFS
 from src.files import (
                         read_train_test_meta,
                         read_train_test_bert,
@@ -66,6 +66,7 @@ MF_COMBINATION = execution["MF_COMBINATION"]
 NUM_FEATS = execution["NUM_FEATS"]
 BERT_STACKING = execution["BERT_STACKING"]
 SPLIT_SETTINGS = execution["SPLIT_SETTINGS"]
+LOAD_MODEL = execution["LOAD_MODEL"]
 DIR_META_INPUT = f"{DATA_SOURCE}/clfs_output/{SPLIT_SETTINGS}"
 
 if __name__ == "__main__":
@@ -82,13 +83,17 @@ if __name__ == "__main__":
         if meta_feature == "proba":
             X_train, X_test = read_train_test_meta(DIR_META_INPUT, dataset, N_FOLDS, fold_id, MODELS)
             dir_dest += f"{meta_layer}/{meta_feature}/fold_{fold_id}"
+        elif meta_feature == "proba_by_conf":
+            DINPUT = f"/home/welton/data/meta_features/proba_by_conf/{SPLIT_SETTINGS}"
+            X_train, X_test = read_train_test_meta(DINPUT, dataset, N_FOLDS, fold_id, NEW_CLFS)
+            dir_dest += f"{meta_layer}/{meta_feature}/fold_{fold_id}"
         elif meta_feature == "mix_reps":
             X_train, X_test = read_train_test_meta(DIR_META_INPUT, dataset, N_FOLDS, fold_id, REP_CLFS)
             dir_dest += f"{meta_layer}/{meta_feature}/fold_{fold_id}"
         elif meta_feature == "mix_reps_without_bert":
             X_train, X_test = read_train_test_meta(DIR_META_INPUT, dataset, N_FOLDS, fold_id, MIX_REPS_MINUS_BERT)
             dir_dest += f"{meta_layer}/{meta_feature}/fold_{fold_id}"
-        elif meta_feature in ["upper_test"]:
+        elif meta_feature in ["global_xgboost/clfs"]:
             oracle_path = f"{DATA_SOURCE}/oracle"
             X_train, X_test = read_train_test_meta_oracle(DIR_META_INPUT, 
                                                             dataset,
@@ -148,7 +153,7 @@ if __name__ == "__main__":
             X_train,
             y_train,
             opt_n_jobs=N_JOBS,
-            load_model=False
+            load_model=LOAD_MODEL
         )
 
         # Prediction

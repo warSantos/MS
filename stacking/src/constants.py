@@ -48,3 +48,4 @@ IDS_MODELS = {
 
 REP_CLFS = ["rep_bert", "sfr", "lpr", "ltr", "xtmk"]
 MIX_REPS_MINUS_BERT = ["sfr", "lpr", "ltr", "xtmk"]
+NEW_CLFS = ["kpr", "ktr", "lpr", "ltr", "sfr", "stmk", "xfr", "xpr", "xtr", "kfr", "ktmk", "lfr", "ltmk", "spr", "str", "xlnet_softmax", "xtmk", "rep_bert"]

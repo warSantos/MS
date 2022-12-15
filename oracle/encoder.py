@@ -5,7 +5,6 @@ import torch
 import torch.nn as nn
 
 from typing import Tuple, List
-from sklearn.datasets import load_svmlight_file
 from torch.utils.data import Dataset, DataLoader
 
 
@@ -31,7 +30,7 @@ class DatasetCent(Dataset):
     
 class EconderArchitecture(nn.Module):
 
-	def __init__(self, input_size, hidden_layers=3, output_layer="linear"):
+	def __init__(self, input_size, hidden_layers=2, output_layer="linear"):
 
 		super().__init__()
 
@@ -41,7 +40,7 @@ class EconderArchitecture(nn.Module):
 
 		for i in range(hidden_layers):
 			self.encoder.append(nn.Linear(self.input_size, self.output_size))
-			self.encoder.append(nn.ReLU())
+			self.encoder.append(nn.ReLU6())
 
 		self.encoder.append(nn.Linear(self.input_size, self.output_size))
 		self.encoder.append(nn.Sigmoid())
@@ -54,7 +53,7 @@ class EconderArchitecture(nn.Module):
 
 class Encoder:
 
-	def __init__(self, input_size, hidden_layers=1):
+	def __init__(self, input_size, hidden_layers=2):
 
 		self.input_size = input_size
 		self.device = torch.device(
@@ -62,10 +61,10 @@ class Encoder:
 		self.model = EconderArchitecture(
 			self.input_size, hidden_layers=hidden_layers).to(self.device)
 
-	def fit(self, data: DatasetCent, epochs=80, batch_size=64):
+	def fit(self, data: DatasetCent, epochs=50, batch_size=64):
 
-		criterion = nn.HuberLoss()
-		optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-3)
+		criterion = nn.MSELoss()
+		optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-2)
 
 		train_loader = DataLoader(
 			dataset=data, batch_size=batch_size, shuffle=True)

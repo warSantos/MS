@@ -114,6 +114,7 @@ def read_train_test_fix_one(
         X_train_meta, _ = load_x_y(file_train_meta, 'train')
         X_test_meta, _ = load_x_y(file_test_meta, 'test')
 
+        """
         # Applying fix one.
         preds = X_train_meta.argmax(axis=1)
         missed = y_true != preds
@@ -121,6 +122,7 @@ def read_train_test_fix_one(
             # If the classifier missed.
             if missed[idx]:
                 X_train_meta[idx][preds[idx]] = 0
+        """
 
         Xs_train.append(X_train_meta)
         Xs_test.append(X_test_meta)
