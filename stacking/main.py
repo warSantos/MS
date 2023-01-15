@@ -22,13 +22,11 @@ except:
 
 DATA_SOURCE = settings["DATA_SOURCE"]
 
-from src.constants import IDS_MODELS, REP_CLFS, MIX_REPS_MINUS_BERT, NEW_CLFS
+from src.constants import IDS_MODELS, REP_CLFS, NEW_CLFS, PARTIAL_STACKING
 from src.files import (
                         read_train_test_meta,
-                        read_train_test_bert,
                         load_y,
-                        read_train_test_meta_oracle,
-                        read_train_test_fix_one
+                        read_train_test_meta_oracle
                     )
 from src.stacking.input_types import read_mfs
 from src.optimization import execute_optimization
@@ -83,53 +81,31 @@ if __name__ == "__main__":
         if meta_feature == "proba":
             X_train, X_test = read_train_test_meta(DIR_META_INPUT, dataset, N_FOLDS, fold_id, MODELS)
             dir_dest += f"{meta_layer}/{meta_feature}/fold_{fold_id}"
-        elif meta_feature == "proba_by_conf":
-            DINPUT = f"/home/welton/data/meta_features/proba_by_conf/{SPLIT_SETTINGS}"
-            X_train, X_test = read_train_test_meta(DINPUT, dataset, N_FOLDS, fold_id, NEW_CLFS)
+        elif meta_feature == "calibrated_probabilities":
+            input_data = f"{DATA_SOURCE}/{meta_layer}/{SPLIT_SETTINGS}"
+            X_train, X_test = read_train_test_meta(input_data, dataset, N_FOLDS, fold_id, PARTIAL_STACKING)
             dir_dest += f"{meta_layer}/{meta_feature}/fold_{fold_id}"
         elif meta_feature == "mix_reps":
             X_train, X_test = read_train_test_meta(DIR_META_INPUT, dataset, N_FOLDS, fold_id, REP_CLFS)
             dir_dest += f"{meta_layer}/{meta_feature}/fold_{fold_id}"
-        elif meta_feature == "mix_reps_without_bert":
-            X_train, X_test = read_train_test_meta(DIR_META_INPUT, dataset, N_FOLDS, fold_id, MIX_REPS_MINUS_BERT)
-            dir_dest += f"{meta_layer}/{meta_feature}/fold_{fold_id}"
-        elif meta_feature in ["global_xgboost/clfs"]:
+                
+        elif meta_feature in ["local_xgboost", "local_gbm_75"]:
             oracle_path = f"{DATA_SOURCE}/oracle"
-            X_train, X_test = read_train_test_meta_oracle(DIR_META_INPUT, 
+            X_train, X_test = read_train_test_meta_oracle(DIR_META_INPUT,
                                                             dataset,
                                                             N_FOLDS,
                                                             fold_id,
-                                                            REP_CLFS,
+                                                            NEW_CLFS,
                                                             oracle_path,
                                                             meta_feature)
 
             dir_dest += f"{meta_layer}/{meta_feature}/fold_{fold_id}"
-        elif meta_feature == "fix_one":
-            oracle_path = f"{DATA_SOURCE}/oracle"
-            X_train, X_test = read_train_test_fix_one(DIR_META_INPUT, dataset, N_FOLDS, fold_id, MODELS)
-            dir_dest += f"{meta_layer}/{meta_feature}/fold_{fold_id}"
             
-        elif meta_feature == "encoder":
+        elif meta_feature in ["encoder", "upper_mean"]:
             feat_dir = f"{DATA_SOURCE}/oracle/{meta_feature}/{dataset}/all_clfs/{fold_id}"
             X_train = np.load(f"{feat_dir}/train.npz")["X_train"]
             X_test = np.load(f"{feat_dir}/test.npz")["X_test"]
             dir_dest += f"{meta_layer}/{meta_feature}/fold_{fold_id}"
-
-        elif BERT_STACKING:
-            X_train, X_test = read_train_test_bert(DATA_SOURCE, dataset, BERT_STACKING, N_FOLDS, fold_id)
-            dir_dest += f"/{SPLIT_SETTINGS}/{meta_feature}/{fold_id}"
-        # If is there any MF to load.
-        elif META_FEATURES:
-            meta_feature_path = f"{MFS_DIR}/{meta_feature}"
-            X_train, X_test = read_mfs(DIR_META_INPUT, meta_feature_path, dataset, N_FOLDS, fold_id, MODELS, MF_COMBINATION, load_proba=WITH_PROBA)
-            dir_dest += f"""
-            {dir_dest}
-            {meta_layer}/
-            num_feats/{nf}/
-            with_proba/{WITH_PROBA}/
-            combination/{MF_COMBINATION}/
-            {meta_feature}/
-            fold_{fold_id}""".replace(' ','').replace('\n','')
         else:
             raise ValueError(f"Invalid value ({meta_feature}) for type_input.")
 
@@ -152,6 +128,7 @@ if __name__ == "__main__":
             file_model,
             X_train,
             y_train,
+            seed=SEED,
             opt_n_jobs=N_JOBS,
             load_model=LOAD_MODEL
         )

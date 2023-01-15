@@ -5,6 +5,8 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import LinearSVC, SVC
 from lightgbm import LGBMClassifier
 from sklearn.neighbors import KNeighborsClassifier
+from xgboost import XGBClassifier
+
 
 from optuna.distributions import (
     FloatDistribution,
@@ -28,12 +30,13 @@ HYP_SVM = {
     "C": FloatDistribution(low=1e-8, high=20.)
 }
 
+# RBF SVM
 CLF_SVM_RBF = SVC(random_state=42, kernel='rbf')
 HYP_SVM_RBF = {
     "C": FloatDistribution(low=1e-8, high=20.)
 }
 
-
+# Centroid
 CLF_NC = NearestCentroid()
 HYP_NC = {
     "metric": CategoricalDistribution(["cosine", "euclidean"]),
@@ -41,7 +44,7 @@ HYP_NC = {
 }
 
 # Logistic Regression
-CLF_LOGISTIC = LogisticRegression(random_state=42, solver="sag")
+CLF_LOGISTIC = LogisticRegression(random_state=42, solver="sag", max_iter=200)
 HYP_LOGISTIC = {
     "C": FloatDistribution(low=1e-8, high=20.),
     "penalty": CategoricalDistribution(["none", "l2"]),
@@ -53,8 +56,19 @@ CLF_KNN = KNeighborsClassifier()
 HYP_KNN = {
     "n_neighbors": IntDistribution(low=3, high=100),
     "metric": CategoricalDistribution(["cosine", "l1", "l2", "minkowski", "euclidean"]),
-    "weights": CategoricalDistribution(["uniform", "distance"]),
-    "n_jobs": 1
+    "weights": CategoricalDistribution(["uniform", "distance"])
+}
+
+# XGBoost
+CLF_XGB = XGBClassifier(random_state=42, tree_method='gpu_hist', verbosity=0)
+HYP_XGB = {
+    "n_estimators": IntDistribution(low=100, high=1000, step=50),
+    "learning_rate": FloatDistribution(low=.01, high=.5),
+    "eta": FloatDistribution(low=.025, high=.5),
+    "max_depth": IntDistribution(low=1, high=14),
+    "subsample": FloatDistribution(low=.5, high=1.),
+    "gamma": FloatDistribution(low=1e-8, high=1.),
+    "colsample_bytree": FloatDistribution(low=.5, high=1.)
 }
 
 # Random Forest
@@ -71,19 +85,49 @@ HYP_GBM = {
     "max_depth": IntDistribution(low=3, high=13, step=2)
 }
 
-def get_clf(clf_name: str, *, n_jobs: int = 10):
+ALIAS = {
+    "bert": "bert",
+    "knn/pr": "kpr",
+    "knn/tr": "ktr",
+    "logistic_regression/pr": "lpr",
+    "logistic_regression/tr": "ltr",
+    "svm/fr": "sfr",
+    "svm/tmk": "stmk",
+    "xgboost/fr": "xfr",
+    "xgboost/tmk": "xtmk",
+    "knn/fr": "kfr",
+    "knn/tmk": "ktmk",
+    "logistic_regression/fr": "lfr",
+    "logistic_regression/tmk": "ltmk",
+    "svm/pr": "spr",
+    "svm/tr": "str",
+    "xgboost/pr": "xpr",
+    "xgboost/tr": "xtr"
+}
 
-    if clf_name == "centroid":
-        clf, hyper_ps = CLF_NC, HYP_NC
-    if clf_name == "gbm":
-        clf, hyper_ps = CLF_GBM, HYP_GBM
-    if clf_name == "svm":
-        clf, hyper_ps = CLF_SVM, HYP_SVM
-    if clf_name == "rf":
-        clf, hyper_ps = CLF_RF, HYP_RF
-    if clf_name == "lr":
-        clf, hyper_ps = CLF_LOGISTIC, HYP_LOGISTIC
-    if clf_name == "knn":
-        clf, hyper_ps = CLF_KNN, HYP_KNN
+def get_classifier(
+        classifier_name: str,
+        *,
+        n_jobs: int = -1
+):
+    if classifier_name == "linear_svm":
+        classifier, hyperparameters = CLF_SVM, HYP_SVM
+    elif classifier_name == "svm":
+        classifier, hyperparameters = CLF_SVM_RBF, HYP_SVM_RBF
+    elif classifier_name == "logistic_regression":
+        classifier, hyperparameters = CLF_LOGISTIC, HYP_LOGISTIC
+        classifier.set_params(**{"n_jobs": n_jobs})
+    elif classifier_name == "knn":
+        classifier, hyperparameters = CLF_KNN, HYP_KNN
+        classifier.set_params(**{"n_jobs": n_jobs})
+    elif classifier_name == "xgboost":
+        classifier, hyperparameters = CLF_XGB, HYP_XGB
+        #classifier.set_params(**{"n_jobs": n_jobs})
+    elif classifier_name == "random_forest":
+        classifier, hyperparameters = CLF_RF, HYP_RF
+    elif classifier == "centroid":
+        classifier, hyperparameters = CLF_NC, HYP_NC
+    else:
+        raise ValueError(f"Classifier {classifier_name} does not exits.")
 
-    return clf, hyper_ps
+    return classifier, hyperparameters
