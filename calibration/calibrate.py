@@ -17,7 +17,6 @@ class Parameters:
         do_evaluate = False,
         data_path = "/home/welton/data",
         logits_path = "logits/clfs_output/split_10/webkb/10_folds/rep_bert",
-        labels_path = "datasets/labels/split_10_with_val/webkb/",
         base_output = "calibrated_probabilities/split_10/webkb/10_folds/rep_bert"
         ):
 
@@ -29,11 +28,10 @@ class Parameters:
         self.do_evaluate = do_evaluate
         self.data_path = data_path
         self.logits_path = f"{data_path}/{logits_path}"
-        self.labels_path = f"{data_path}/{labels_path}"
         self.base_output = f"{data_path}/{base_output}"
 
 
-def load_output(labels_path, logits_path, train_test):
+def load_output(logits_path, train_test):
     """Loads output file, wraps elements in tensor."""
 
     """
@@ -45,7 +43,8 @@ def load_output(labels_path, logits_path, train_test):
         return elems
     """
 
-    labels, logits = np.load(labels_path), np.load(logits_path)[f"X_{train_test}"]
+    loader = np.load(logits_path)
+    labels, logits = loader[f"y_{train_test}"], loader[f"X_{train_test}"]
 
     elem = {}
     elem["true"] = torch.from_numpy(labels)
@@ -150,8 +149,7 @@ def cross_entropy(output, target, n_classes, args):
 def train(args, fold):
     
     logits_path = f"{args.logits_path}/{fold}/eval_logits.npz"
-    labels_path = f"{args.labels_path}/{fold}/val.npy"
-    elems = load_output(labels_path, logits_path, "eval")
+    elems = load_output(logits_path, "eval")
 
     #n_classes = len(elems[0]['logits'])
     n_classes = elems["logits"].shape[1]
@@ -189,8 +187,7 @@ def train(args, fold):
 def evaluate(args, fold):
 
     logits_path = f"{args.logits_path}/{fold}/test_logits.npz"
-    labels_path = f"{args.labels_path}/{fold}/test.npy"
-    elems = load_output(labels_path, logits_path, "test")
+    elems = load_output(logits_path, "test")
 
     n_classes = elems["logits"].shape[1]
     
@@ -257,17 +254,37 @@ if __name__=="__main__":
     for fold in np.arange(10):
 
         print(f"FOLD - {fold}")
-        # Estimating the temperature.
-        train(args, fold)
-        # Applying the temperature scaling on the probabilities.
-        output_dict, logs_probs = evaluate(args, fold)
-        # Saving probabilities and logs.
+        ## Estimating the temperature.
+        #train(args, fold)
+        ## Applying the temperature scaling on the probabilities.
+        #output_dict, probs = evaluate(args, fold)
+        ## Saving probabilities and logs.
         output = f"{args.base_output}/{fold}/"
-        os.makedirs(output, exist_ok=True)
-        np.savez(f"{output}/test", X_test=logs_probs)
-        with open(f"{output}/calibration.json", 'w') as fd:
-            json.dump(output_dict, fd)
+        #os.makedirs(output, exist_ok=True)
+        #np.savez(f"{output}/test", X_test=probs)
+        #with open(f"{output}/calibration.json", 'w') as fd:
+        #    json.dump(output_dict, fd)
 
-        # Applying calibration on the subfolds.
+        probs = []
+        align = []
+        # Applying calibration on the subfolds (train probabilities).
         for subfold in np.arange(4):
-            sub_args = Parameters()
+            logits_path = f"logits/clfs_output/split_10/webkb/10_folds/rep_bert/{fold}/sub_fold"
+            sub_args = Parameters(logits_path=logits_path)
+            print(f"\tSUB-FOLD - {subfold}")
+            # Estimating the temperature.
+            train(sub_args, subfold)
+            # Applying the temperature scaling on the probabilities.
+            output_dict, p = evaluate(sub_args, subfold)
+            probs.append(p)
+            # Saving probabilities and logs.
+            sub_output = f"{output}/sub_fold/{subfold}"
+            os.makedirs(sub_output, exist_ok=True)
+            with open(f"{sub_output}/calibration.json", 'w') as fd:
+                json.dump(output_dict, fd)
+            # Loading fold ids alignments.
+            align.append(np.load(f"{sub_args.logits_path}/{subfold}/align.npz")["align"])
+        align = np.hstack(align)
+        probs = np.vstack(probs)[align.argsort()]
+        np.savez(f"{output}/train", X_train=probs)
+
