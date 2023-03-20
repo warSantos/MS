@@ -6,7 +6,7 @@ TODO: Longer description.
 """
 
 import os
-
+import json
 import numpy as np
 from joblib import load, dump
 from optuna.integration import OptunaSearchCV
@@ -16,12 +16,33 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 from src.models.models import get_classifier
-from src.models.calibration import probabilities_calibration
 
+def load_params(params_path: str):
+
+    with open(params_path, 'r') as fd:
+        params = json.load(fd)
+        return { key.replace("classifier__",''):params[key] for key in params if key.find("classifier__") > -1 }
+
+def save_params(optuna_search: OptunaSearchCV, params_path: str):
+
+    with open(params_path, 'w') as fd:
+        json.dump(optuna_search.best_params_, fd)
+
+def run_model(classifier_name: str,
+              params_path: str,
+              X_train: np.ndarray,
+              y_train: np.ndarray,
+              clf_n_jobs: int):
+    
+    classifier, _ = get_classifier(classifier_name, n_jobs=clf_n_jobs)
+    best_params = load_params(params_path)
+    classifier.set_params(**best_params)
+    classifier.fit(X_train, y_train)
+    return classifier
 
 def execute_optimization(
         classifier_name: str,
-        file_model: str,
+        output_dir: str,
         X_train: np.ndarray,
         y_train: np.ndarray,
         *,
@@ -31,23 +52,30 @@ def execute_optimization(
         opt_n_jobs: int = 1,
         clf_n_jobs: int = -1,
         seed: int = 42,
-        load_model: bool = False,
-        calibration: bool = False
+        load_model: bool = False
 ) -> BaseEstimator:
-    classifier, hyperparameters = get_classifier(
-        classifier_name, n_jobs=clf_n_jobs)
-    pipeline = Pipeline([
-        ("scaler", StandardScaler(with_mean=False)),
-        ("classifier", classifier)
-    ])
-    hyperparameters = {f"classifier__{k}": v for k,
-                       v in hyperparameters.items()}
-
-    if load_model and os.path.exists(file_model):
+    
+    params_path = f"{output_dir}/hyper_params.json"
+    if load_model and os.path.exists(params_path):
         
-        print("\tModel already trained! Loading model...")
-        optuna_search = load(file_model)
+        print("\tModel already trained! Loading best params set...")
+        classifier = run_model(classifier_name, 
+                               params_path, 
+                               X_train, 
+                               y_train, 
+                               clf_n_jobs)
+        return classifier
+        
     else:
+
+        classifier, hyperparameters = get_classifier(classifier_name, n_jobs=clf_n_jobs)
+        pipeline = Pipeline([
+            ("scaler", StandardScaler(with_mean=False)),
+            ("classifier", classifier)
+        ])
+        hyperparameters = {f"classifier__{k}": v for k,
+                        v in hyperparameters.items()}
+
         optuna_search = OptunaSearchCV(
             pipeline,
             hyperparameters,
@@ -59,25 +87,12 @@ def execute_optimization(
             n_jobs=opt_n_jobs,
             refit=True
         )
-        print("\tExecuting model...")
+        print("\tOptimizing model...")
         optuna_search.fit(X_train, y_train)
-        #dump(optuna_search, file_model)
-
-    
-    if calibration:
-        calib_path = file_model.replace("model", "calibrated")
-        if load_model and os.path.exists(calib_path):
-        
-            print("\tModel already trained and calibrated! Loading model...")
-            calibrated = load(calib_path)
-        else:
-            print("\tCalibrating model...")
-            calibrated = probabilities_calibration(optuna_search,
-                                            X_train,
-                                            y_train,
-                                            classifier_name,
-                                            n_jobs=clf_n_jobs)
-            #dump(calibrated, calib_path)
-        return calibrated
-
-    return optuna_search
+        save_params(optuna_search, params_path)
+        classifier = run_model(classifier_name, 
+                               params_path, 
+                               X_train, 
+                               y_train, 
+                               clf_n_jobs)
+        return classifier

@@ -5,8 +5,18 @@
 TODO: Longer description.
 """
 
-from typing import Tuple, List
+import json
 import numpy as np
+from typing import Tuple, List
+
+def check_f1(scoring_path: str):
+
+    with open(scoring_path, 'r') as fd:
+        scores = json.load(fd)
+        if scores["precision"] > 65:
+            return True
+        return False
+
 
 def load_x_y(
         file: str,
@@ -62,95 +72,44 @@ def load_y(
     y_train = np.load(f"{labels_dir}/train.npz")["y_train"]
     y_test = np.load(f"{labels_dir}/test.npz")["y_test"]
 
-    return y_train, y_test
+    return (y_train, y_test)
 
 def read_train_test_meta_oracle(
-        dir_meta_input: str,
-        dataset: str,
-        n_folds: int,
-        fold_id: int,
-        algorithms: List[str],
-        oracle_path: str,
-        oracle_strategy: str
-) -> Tuple[np.ndarray, np.ndarray]:
-    Xs_train, Xs_test = [], []
-
-    for alg in algorithms:
-        file_train_meta = f"{dir_meta_input}/{dataset}/{n_folds}_folds/{alg}/{fold_id}/train.npz"
-        file_test_meta = f"{dir_meta_input}/{dataset}/{n_folds}_folds/{alg}/{fold_id}/test.npz"
-
-        X_train_meta, _ = load_x_y(file_train_meta, 'train')
-        X_test_meta, _ = load_x_y(file_test_meta, 'test')
-        
-        oracle_base_dir = f"{oracle_path}/{oracle_strategy}/{dataset}/{alg}/{fold_id}"
-        oracle_file_train = f"{oracle_base_dir}/train.npz"
-        oracle_file_test = f"{oracle_base_dir}/test.npz"
-
-        oracle_train = np.load(oracle_file_train)['y']
-        oracle_test = np.load(oracle_file_test)['y']
-
-        Xs_train.append(X_train_meta * oracle_train[:, None])
-        Xs_test.append(X_test_meta * oracle_test[:, None])
-
-    X_train_meta = np.hstack(Xs_train)
-    X_test_meta = np.hstack(Xs_test)
-
-    return X_train_meta, X_test_meta
-
-def read_train_test_fix_one(
-        dir_meta_input: str,
-        dataset: str,
-        n_folds: int,
-        fold_id: int,
-        algorithms: List[str]
-) -> Tuple[np.ndarray, np.ndarray]:
-    Xs_train, Xs_test = [], []
-
-    y_true = np.load(f"{dir_meta_input}/{dataset}/{n_folds}_folds/lfr/{fold_id}/train.npz")["y_train"]
-    for alg in algorithms:
-        file_train_meta = f"{dir_meta_input}/{dataset}/{n_folds}_folds/{alg}/{fold_id}/train.npz"
-        file_test_meta = f"{dir_meta_input}/{dataset}/{n_folds}_folds/{alg}/{fold_id}/test.npz"
-
-        X_train_meta, _ = load_x_y(file_train_meta, 'train')
-        X_test_meta, _ = load_x_y(file_test_meta, 'test')
-
-        """
-        # Applying fix one.
-        preds = X_train_meta.argmax(axis=1)
-        missed = y_true != preds
-        for idx in np.arange(missed.shape[0]):
-            # If the classifier missed.
-            if missed[idx]:
-                X_train_meta[idx][preds[idx]] = 0
-        """
-
-        Xs_train.append(X_train_meta)
-        Xs_test.append(X_test_meta)
-
-    X_train_meta = np.hstack(Xs_train)
-    X_test_meta = np.hstack(Xs_test)
-
-    return X_train_meta, X_test_meta
-
-def read_train_test_bert(
         data_source: str,
         dataset: str,
-        algorithms: List[str],
         n_folds: int,
-        fold_id: int
+        fold_id: int,
+        clf_set: List[List],
+        oracle_strategy: str,
+        confidence: float,
+        zero_train: bool
 ) -> Tuple[np.ndarray, np.ndarray]:
     
     Xs_train, Xs_test = [], []
 
-    for clf in algorithms:
+    for clf, proba_type, oracle_feats in clf_set:
         
-        probs_dir = f"{data_source}/clfs_output/split_10_with_val/{dataset}/{n_folds}_folds/{clf}/{fold_id}"
+        probas_dir = f"{data_source}/{proba_type}/split_{n_folds}/{dataset}/{n_folds}_folds/{clf}/{fold_id}"
+        X_train_meta, _ = load_x_y(f"{probas_dir}/train.npz", 'train')
+        X_test_meta, _ = load_x_y(f"{probas_dir}/test.npz", 'test')
+        
+        oracle_base_dir = f"{data_source}/oracle/{oracle_strategy}/{proba_type}/{dataset}/{n_folds}_folds/{clf}/{oracle_feats}/{fold_id}"
 
-        X_train_meta = np.load(f"{probs_dir}/train_probas.npy")
-        X_test_meta = np.load(f"{probs_dir}/probas.npy")
+        oracle_train = np.load(f"{oracle_base_dir}/train.npz")['y']
+        if not zero_train:
+            oracle_train[oracle_train == 0] = 1
+        
+        oracle_test = np.load(f"{oracle_base_dir}/test.npz")['y']
 
-        Xs_train.append(X_train_meta)
-        Xs_test.append(X_test_meta)
+        if check_f1(f"{oracle_base_dir}/scoring.json"):
+            
+            probs_class_0 = 1 - oracle_test
+            oracle_test = np.array([ 0 if prob > confidence else 1 for prob in probs_class_0 ])
+        else:
+            oracle_test = np.zeros(oracle_test.shape[0]) + 1
+
+        Xs_train.append(X_train_meta * oracle_train[:, None])
+        Xs_test.append(X_test_meta * oracle_test[:, None])
 
     X_train_meta = np.hstack(Xs_train)
     X_test_meta = np.hstack(Xs_test)

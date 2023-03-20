@@ -5,30 +5,31 @@ import torch
 import torch.nn.functional as F
 from tqdm import tqdm
 from sklearn.metrics import accuracy_score
+from itertools import product
 
 class Parameters:
 
     def __init__(self,
+        data_path,
+        logits_path,
+        base_output,
         device = 0,
         buckets = 10,
         temperature = 1,
         label_smoothing = 0,
         do_train = False,
         do_evaluate = False,
-        data_path = "/home/welton/data",
-        logits_path = "logits/clfs_output/split_10/webkb/10_folds/rep_bert",
-        base_output = "calibrated_probabilities/split_10/webkb/10_folds/rep_bert"
         ):
 
+        self.data_path = data_path
+        self.logits_path = f"{data_path}/{logits_path}"
+        self.base_output = f"{data_path}/{base_output}"
         self.device = device
         self.buckets = buckets
         self.temperature = temperature
         self.label_smoothing = label_smoothing
         self.do_train = do_train
         self.do_evaluate = do_evaluate
-        self.data_path = data_path
-        self.logits_path = f"{data_path}/{logits_path}"
-        self.base_output = f"{data_path}/{base_output}"
 
 
 def load_output(logits_path, train_test):
@@ -249,42 +250,53 @@ def evaluate(args, fold):
 
 if __name__=="__main__":
     
-    args = Parameters()
+    DATASETS = ["20ng", "acm"]
+    CLFS = ["xlnet", "bert"]
 
-    for fold in np.arange(10):
+    for dataset, clf in product(DATASETS, CLFS):
 
-        print(f"FOLD - {fold}")
-        ## Estimating the temperature.
-        #train(args, fold)
-        ## Applying the temperature scaling on the probabilities.
-        #output_dict, probs = evaluate(args, fold)
-        ## Saving probabilities and logs.
-        output = f"{args.base_output}/{fold}/"
-        #os.makedirs(output, exist_ok=True)
-        #np.savez(f"{output}/test", X_test=probs)
-        #with open(f"{output}/calibration.json", 'w') as fd:
-        #    json.dump(output_dict, fd)
+        args = Parameters(
+            "/home/welton/data",
+            f"normal_probas/split_10/{dataset}/10_folds/{clf}",
+            f"temperature_scaling/split_10/{dataset}/10_folds/{clf}")
 
-        probs = []
-        align = []
-        # Applying calibration on the subfolds (train probabilities).
-        for subfold in np.arange(4):
-            logits_path = f"logits/clfs_output/split_10/webkb/10_folds/rep_bert/{fold}/sub_fold"
-            sub_args = Parameters(logits_path=logits_path)
-            print(f"\tSUB-FOLD - {subfold}")
+        for fold in np.arange(10):
+
+            print(f"[ {dataset.upper()} / {clf.upper()} ] FOLD - {fold}")
             # Estimating the temperature.
-            train(sub_args, subfold)
+            train(args, fold)
             # Applying the temperature scaling on the probabilities.
-            output_dict, p = evaluate(sub_args, subfold)
-            probs.append(p)
+            output_dict, probs = evaluate(args, fold)
             # Saving probabilities and logs.
-            sub_output = f"{output}/sub_fold/{subfold}"
-            os.makedirs(sub_output, exist_ok=True)
-            with open(f"{sub_output}/calibration.json", 'w') as fd:
+            output = f"{args.base_output}/{fold}/"
+            os.makedirs(output, exist_ok=True)
+            np.savez(f"{output}/test", X_test=probs)
+            with open(f"{output}/calibration.json", 'w') as fd:
                 json.dump(output_dict, fd)
-            # Loading fold ids alignments.
-            align.append(np.load(f"{sub_args.logits_path}/{subfold}/align.npz")["align"])
-        align = np.hstack(align)
-        probs = np.vstack(probs)[align.argsort()]
-        np.savez(f"{output}/train", X_train=probs)
+
+            probs = []
+            align = []
+            # Applying calibration on the subfolds (train probabilities).
+            for subfold in np.arange(4):
+                sub_args = Parameters(
+                    "/home/welton/data",
+                    f"normal_probas/split_10/{dataset}/10_folds/{clf}/{fold}/sub_fold",
+                    f"temperature_scaling/split_10/{dataset}/10_folds/{clf}")
+                
+                print(f"[ {dataset.upper()} / {clf.upper()} ] SUB-FOLD - {subfold}")
+                # Estimating the temperature.
+                train(sub_args, subfold)
+                # Applying the temperature scaling on the probabilities.
+                output_dict, p = evaluate(sub_args, subfold)
+                probs.append(p)
+                # Saving probabilities and logs.
+                sub_output = f"{output}/sub_fold/{subfold}"
+                os.makedirs(sub_output, exist_ok=True)
+                with open(f"{sub_output}/calibration.json", 'w') as fd:
+                    json.dump(output_dict, fd)
+                # Loading fold ids alignments.
+                align.append(np.load(f"{sub_args.logits_path}/{subfold}/align.npz")["align"])
+            align = np.hstack(align)
+            probs = np.vstack(probs)[align.argsort()]
+            np.savez(f"{output}/train", X_train=probs)
 

@@ -42,11 +42,11 @@ IDS_MODELS = {
     "xgboost/pte_1/raw_folds": "xpr",
     "xgboost/tf_idf_1/fs": "xtr",
     "xgboost/tf_idf_1/meta_features_1/knn_cos": "xtmk",
-    "xlnet": "xlnet",
-    "bert": "bert"
+    "xlnet": "xlnet_rep",
+    "bert": "rep_bert"
 }
 
 REP_CLFS = ["rep_bert", "sfr", "lpr", "ltr", "xtmk"]
 MIX_REPS_MINUS_BERT = ["sfr", "lpr", "ltr", "xtmk"]
 NEW_CLFS = ["kpr", "ktr", "lpr", "ltr", "sfr", "stmk", "xfr", "xpr", "xtr", "kfr", "ktmk", "lfr", "ltmk", "spr", "str", "xlnet_softmax", "xtmk", "rep_bert"]
-PARTIAL_STACKING = ["kfr", "kpr", "ktmk", "ktr", "lfr", "lpr", "ltmk", "rep_bert"]
+PARTIAL_STACKING = ["kfr", "kpr", "ktmk", "ktr", "xlnet_rep", "rep_bert"]

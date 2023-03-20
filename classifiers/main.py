@@ -3,17 +3,16 @@ from sys import exit
 import os
 import json
 import numpy as np
-from sklearn.metrics import f1_score, accuracy_score
+from scipy import sparse
 from itertools import product
+from sklearn.metrics import f1_score, accuracy_score
+from sklearn.model_selection import train_test_split
 
 # Loading local libraries.
 from src.models.models import ALIAS
+from src.models.calibration import probabilities_calibration
 from src.models.optimization import execute_optimization
 from src.train_probas.train_probas import build_train_probas
-from src.models.calibration import probabilities_calibration
-from joblib import load, dump
-
-
 
 # Warning Control.
 import warnings
@@ -25,28 +24,45 @@ warnings.filterwarnings("ignore")
 os.environ["PYTHONWARNINGS"] = "ignore"  # Also affect sub-processes
 
 
+def report_scoring(y_test, y_pred, output_dir):
+
+    scoring = {}
+    scoring["macro"] = f1_score(y_test, y_pred, average="macro")
+    scoring["micro"] = f1_score(y_test, y_pred, average="micro")
+    scoring["accuracy"] = accuracy_score(y_test, y_pred)
+
+    print(f"\n\tMacro: {scoring['macro'] * 100}")
+    print(f"\tMicro: {scoring['micro'] * 100}\n")
+
+    with open(f"{output_dir}/scoring.json", "w") as fd:
+        json.dump(scoring, fd)
+
+
 try:
     with open("data/settings.json", 'r') as fd:
         settings = json.load(fd)
 except:
-    raise("file data/setup/settings.json not found.")
+    raise ("file data/setup/settings.json not found.")
 
 
+SEED = 42
 DATASETS = settings["DATASETS"]
 CLFS = settings["CLFS"]
 REP = settings["REP"]
 DATA_SOURCE = settings["DATA_SOURCE"]
 SPLIT_SETTINGS = settings["SPLIT_SETTINGS"]
-N_JOBS = settings["N_JOBS"]
+SAVE_PROBAS_CALIB = settings["SAVE_PROBAS_CALIB"]
 N_FOLDS = settings["N_FOLDS"]
 NESTED_FOLDS = settings["NESTED_FOLDS"]
-CALIBRATION = settings["CALIBRATION"]
-if CALIBRATION:
-    normal_or_calib = "calibrated_probabilities"
-else:
-    normal_or_calib = "normal_probabilities"
-BUILD_TRAIN_PROBAS = settings["BUILD_TRAIN_PROBAS"]
+DO_TEST = settings["DO_TEST"]
+DO_TRAIN = settings["DO_TRAIN"]
+DO_TEST_CALIB = settings["DO_TEST_CALIB"]
+DO_TRAIN_CALIB = settings["DO_TRAIN_CALIB"]
 LOAD_MODEL = settings["LOAD_MODEL"]
+CALIB_METHOD = settings["CALIB_METHOD"]
+CLFS_SETUP = settings["CLFS_SETUP"]
+
+probas_dir = "normal_probas"
 
 iterations = product(
     DATASETS,
@@ -58,70 +74,98 @@ iterations = product(
 
 for dset, clf, rep, sp_setting, fold in iterations:
 
+    N_JOBS = CLFS_SETUP[clf]["n_jobs"]
+    OPT_N_JOBS = CLFS_SETUP[clf]["opt_n_jobs"]
+
     print(f" {dset.upper()} - [{clf.upper()} / {rep.upper()}] - FOLD: {fold}")
 
     # Loading representations.
     reps_dir = f"{DATA_SOURCE}/representations/{dset}/{N_FOLDS}_folds/{rep}/{fold}"
     train_load = np.load(f"{reps_dir}/train.npz", allow_pickle=True)
     test_load = np.load(f"{reps_dir}/test.npz", allow_pickle=True)
-    
-    X_train = train_load["X_train"].tolist().toarray()
-    X_test = test_load["X_test"].tolist().toarray()
-    
-    y_train = train_load["y_train"]
+
+    try:
+        if rep == "tr":
+            print("Loading Sparse TF-IDF")
+            full_X_train = train_load["X_train"].tolist()
+            X_test = test_load["X_test"].tolist()
+        else:
+            full_X_train = train_load["X_train"].tolist().toarray()
+            X_test = test_load["X_test"].tolist().toarray()
+            print(f"Loading nd.array {rep}")
+    except:
+        full_X_train = sparse.csr_matrix(train_load["X_train"])
+        X_test = sparse.csr_matrix(test_load["X_test"])
+
+    full_y_train = train_load["y_train"]
     y_test = test_load["y_test"]
-    
-    output_dir = f"{DATA_SOURCE}/{normal_or_calib}/{sp_setting}/{dset}/{N_FOLDS}_folds/{ALIAS[f'{clf}/{rep}']}/{fold}"
-    model_path = f"{output_dir}/model.joblib"
+
+    if DO_TEST_CALIB:
+        X_train, X_val, y_train, y_val = train_test_split(full_X_train,
+                                                          full_y_train,
+                                                          random_state=42,
+                                                          stratify=full_y_train,
+                                                          test_size=0.10)
+    else:
+        X_train, y_train = full_X_train, full_y_train
+
+    output_dir = f"{DATA_SOURCE}/{probas_dir}/{sp_setting}/{dset}/{N_FOLDS}_folds/{ALIAS[f'{clf}/{rep}']}/{fold}"
     os.makedirs(output_dir, exist_ok=True)
-    
-    X_test_path = f"{output_dir}/test"
+
     # If test probas weren't computed yet.
-    if not os.path.exists(f"{X_test_path}.npz"):
-        optuna_search = execute_optimization(
+    if DO_TEST:
+
+        X_test_path = f"{output_dir}/test"
+        estimator = execute_optimization(
             classifier_name=clf,
-            file_model=model_path,
+            output_dir=output_dir,
             X_train=X_train,
             y_train=y_train,
-            opt_n_jobs=1,
+            opt_n_jobs=OPT_N_JOBS,
             clf_n_jobs=N_JOBS,
-            load_model=LOAD_MODEL,
-            calibration=CALIBRATION)
-        
-        probas = optuna_search.predict_proba(X_test)
+            load_model=LOAD_MODEL)
+
+        probas = estimator.predict_proba(X_test)
         y_pred = probas.argmax(axis=1)
-        
         np.savez(X_test_path, X_test=probas)
-        
-        scoring = {}
+        print("Normal.")
+        report_scoring(y_test, y_pred, output_dir)
 
-        scoring["macro"] = f1_score(y_test, y_pred, average="macro")
-        scoring["micro"] = f1_score(y_test, y_pred, average="micro")
-        scoring["accuracy"] = accuracy_score(y_test, y_pred)
+        if SAVE_PROBAS_CALIB:
+            probas_val = estimator.predict_proba(X_test)
+            np.savez(X_test_path.replace('test', 'eval'), X_eval=probas_val)
 
-        print(f"\n\tMacro: {scoring['macro'] * 100}")
-        print(f"\tMicro: {scoring['micro'] * 100}\n")
+        if DO_TEST_CALIB:
+            calib_output_dir = f"{DATA_SOURCE}/{CALIB_METHOD}/{sp_setting}/{dset}/{N_FOLDS}_folds/{ALIAS[f'{clf}/{rep}']}/{fold}"
+            os.makedirs(calib_output_dir, exist_ok=True)
+            calib_est = probabilities_calibration(
+                estimator, X_val, y_val, CALIB_METHOD)
+            c_probas = calib_est.predict_proba(X_test)
+            np.savez(f"{calib_output_dir}/test",
+                     X_test=c_probas, y_test=y_test)
+            print("Calibrated.")
+            report_scoring(y_test, c_probas.argmax(axis=1), calib_output_dir)
 
-        with open(f"{output_dir}/scoring.json", "w") as fd:
-            json.dump(scoring, fd)
+    if DO_TRAIN:
 
-    if BUILD_TRAIN_PROBAS:
         print("\tBuilding Train Probas.")
-        sub_splits_path = f"{output_dir}/sub_splits"
         train_probas_path = f"{output_dir}/train"
-        # If train probs weren't computed yet.
-        if not os.path.exists(f"{train_probas_path}.npz"):
-            X_train_probas = build_train_probas(X_train, 
-                y_train, 
-                clf, 
-                n_splits=NESTED_FOLDS, 
-                n_jobs=N_JOBS, 
-                output_dir=sub_splits_path,
-                load_model=LOAD_MODEL,
-                calibration=CALIBRATION)
-            np.savez(train_probas_path, X_train=X_train_probas)
+        X_train_probas = build_train_probas(
+            clf,
+            output_dir,
+            full_X_train,
+            full_y_train,
+            SAVE_PROBAS_CALIB,
+            DO_TRAIN_CALIB,
+            CALIB_METHOD,
+            n_splits=NESTED_FOLDS,
+            n_jobs=N_JOBS,
+            opt_n_jobs=OPT_N_JOBS,
+            load_model=LOAD_MODEL)
+        np.savez(train_probas_path,
+                 X_train=X_train_probas["probas"], y_train=full_y_train)
 
-# Loading Labels.
-#labels_dir = f"{DATA_SOURCE}/datasets/labels/{sp_setting}/{dset}/{fold}/"
-#y_train = np.load(f"{labels_dir}/train.npy", allow_pickle=True)
-#y_test = np.load(f"{labels_dir}/test.npy", allow_pickle=True)
+        if X_train_probas["calib_probas"] is not None:
+            calib_output_dir = f"{DATA_SOURCE}/{CALIB_METHOD}/{sp_setting}/{dset}/{N_FOLDS}_folds/{ALIAS[f'{clf}/{rep}']}/{fold}"
+            np.savez(f"{calib_output_dir}/train",
+                     X_train=X_train_probas["calib_probas"], y_train=full_y_train)

@@ -86,7 +86,6 @@ HYP_GBM = {
 }
 
 ALIAS = {
-    "bert": "bert",
     "knn/pr": "kpr",
     "knn/tr": "ktr",
     "logistic_regression/pr": "lpr",
@@ -101,6 +100,9 @@ ALIAS = {
     "logistic_regression/tmk": "ltmk",
     "svm/pr": "spr",
     "svm/tr": "str",
+    "linear_svm/tmk": "lstmk",
+    "linear_svm/tr": "lstr",
+    "linear_svm/fr": "lsfr",
     "xgboost/pr": "xpr",
     "xgboost/tr": "xtr"
 }

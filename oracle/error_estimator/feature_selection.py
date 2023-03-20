@@ -55,7 +55,7 @@ def fast_feature_selection(X_train: np.ndarray,
                                       f"{file_model}_opt",
                                       X_train,
                                       y_train,
-                                      load_model=True).best_estimator_
+                                      load_model=False).best_estimator_
         best_params = parse_params(opt.get_params())
         forest, _, _ = get_clf("rf")
         forest.set_params(**best_params)

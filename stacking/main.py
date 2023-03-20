@@ -11,6 +11,16 @@ import numpy as np
 from optuna.logging import set_verbosity, WARNING
 from sklearn.metrics import f1_score
 
+# Local libraries
+from src.optimization import execute_optimization
+from src.loader.loader import read_meta_data
+from src.files import (
+    read_train_test_meta,
+    load_y,
+    read_train_test_meta_oracle
+)
+from src.constants import IDS_MODELS
+
 # Loading basic settings of the envirioment.
 try:
     fd = open("data/settings.json", 'r')
@@ -22,23 +32,12 @@ except:
 
 DATA_SOURCE = settings["DATA_SOURCE"]
 
-from src.constants import IDS_MODELS, REP_CLFS, NEW_CLFS, PARTIAL_STACKING
-from src.files import (
-                        read_train_test_meta,
-                        load_y,
-                        read_train_test_meta_oracle
-                    )
-from src.stacking.input_types import read_mfs
-from src.optimization import execute_optimization
-from src.feature_selection.feature_importance import FeatureSelector
-
 # Lib configs
 set_verbosity(WARNING)
 warnings.simplefilter("ignore")
 os.environ["PYTHONWARNINGS"] = "ignore"  # Also affect sub-processes
 
 # Directories and files
-MFS_DIR = f"{DATA_SOURCE}/meta_features"
 DIR_OUTPUT = f"{DATA_SOURCE}/stacking/stacking_output"
 
 # Execution configs
@@ -59,66 +58,62 @@ META_LAYERS = execution["META_LAYERS"]
 META_FEATURES = execution["META_FEATURES"]
 N_JOBS = execution["N_JOBS"]
 SEED = execution["SEED"]
-WITH_PROBA = execution["WITH_PROBA"]
-MF_COMBINATION = execution["MF_COMBINATION"]
-NUM_FEATS = execution["NUM_FEATS"]
-BERT_STACKING = execution["BERT_STACKING"]
+
 SPLIT_SETTINGS = execution["SPLIT_SETTINGS"]
 LOAD_MODEL = execution["LOAD_MODEL"]
+CONFIDENCE_STEPS = execution["CONFIDENCE_STEPS"]
+
 DIR_META_INPUT = f"{DATA_SOURCE}/clfs_output/{SPLIT_SETTINGS}"
 
 if __name__ == "__main__":
-    iterations = itertools.product(META_FEATURES, META_LAYERS, DATASETS, NUM_FEATS, range(N_FOLDS))
-    for (meta_feature, meta_layer, dataset, num_feats, fold_id) in iterations:
-        print(f"[{meta_layer.upper()} / {meta_feature.upper()}] - {dataset.upper():10s} - fold_{fold_id}")
-    
+    iterations = itertools.product(
+        META_FEATURES, META_LAYERS, DATASETS, CONFIDENCE_STEPS, range(N_FOLDS))
+    for (meta_feature, meta_layer, dataset, confidence, fold_id) in iterations:
+        print(
+            f"[{meta_layer.upper()} / {meta_feature.upper()}] - {dataset.upper():10s} - fold_{fold_id}")
+
         # Reading classification labels.
         y_train, y_test = load_y(DATA_SOURCE, dataset, fold_id, SPLIT_SETTINGS)
-        
-        dir_dest = f"{DIR_OUTPUT}/{dataset}/{N_FOLDS}_folds/"
+
+        # Setting output dir.
+        dir_dest = f"{DIR_OUTPUT}/{dataset}/{N_FOLDS}_folds/{meta_layer}/{meta_feature}"
 
         # Reading meta-layer input
         if meta_feature == "proba":
-            X_train, X_test = read_train_test_meta(DIR_META_INPUT, dataset, N_FOLDS, fold_id, MODELS)
-            dir_dest += f"{meta_layer}/{meta_feature}/fold_{fold_id}"
-        elif meta_feature == "calibrated_probabilities":
-            input_data = f"{DATA_SOURCE}/{meta_layer}/{SPLIT_SETTINGS}"
-            X_train, X_test = read_train_test_meta(input_data, dataset, N_FOLDS, fold_id, PARTIAL_STACKING)
-            dir_dest += f"{meta_layer}/{meta_feature}/fold_{fold_id}"
-        elif meta_feature == "mix_reps":
-            X_train, X_test = read_train_test_meta(DIR_META_INPUT, dataset, N_FOLDS, fold_id, REP_CLFS)
-            dir_dest += f"{meta_layer}/{meta_feature}/fold_{fold_id}"
-                
-        elif meta_feature in ["local_xgboost", "local_gbm_75"]:
-            oracle_path = f"{DATA_SOURCE}/oracle"
-            X_train, X_test = read_train_test_meta_oracle(DIR_META_INPUT,
-                                                            dataset,
-                                                            N_FOLDS,
-                                                            fold_id,
-                                                            NEW_CLFS,
-                                                            oracle_path,
-                                                            meta_feature)
 
-            dir_dest += f"{meta_layer}/{meta_feature}/fold_{fold_id}"
-            
-        elif meta_feature in ["encoder", "upper_mean"]:
-            feat_dir = f"{DATA_SOURCE}/oracle/{meta_feature}/{dataset}/all_clfs/{fold_id}"
-            X_train = np.load(f"{feat_dir}/train.npz")["X_train"]
-            X_test = np.load(f"{feat_dir}/test.npz")["X_test"]
-            dir_dest += f"{meta_layer}/{meta_feature}/fold_{fold_id}"
+            X_train, X_test = read_train_test_meta(
+                DIR_META_INPUT, dataset, N_FOLDS, fold_id, ["bert", "xlnet", "ktmk"])
+
+        elif meta_feature in ["calibrated", "normal_probas"]:
+            X_train, X_test = read_meta_data(
+                DATA_SOURCE,
+                dataset,
+                execution["CLF_SET"],
+                N_FOLDS,
+                fold_id
+            )
+
+        elif meta_feature.find("local_") > -1 or meta_feature == "upper_bound":
+            oracle_set = execution["ORACLE_CLF_SET"]
+            zero_train = execution["ORACLE_ZERO_TRAIN"]
+            X_train, X_test = read_train_test_meta_oracle(DATA_SOURCE,
+                                                          dataset,
+                                                          N_FOLDS,
+                                                          fold_id,
+                                                          oracle_set,
+                                                          meta_feature,
+                                                          confidence,
+                                                          zero_train)
+
+            sufix = '/'.join(sorted([ f"{tup[0]}_{tup[1]}" for tup in oracle_set ]))
+            sufix = f"zero_train_{zero_train}/{confidence}/{sufix}/{oracle_set[0][2]}"
+            dir_dest = f"{dir_dest}/{sufix}"
         else:
             raise ValueError(f"Invalid value ({meta_feature}) for type_input.")
 
         print(f"[OUTPUT: {dir_dest}]")
-        # Verify if feature selection must be applied.
-        nf = 18 * len(set(y_train))
-        if num_feats > -1:
-            fs = FeatureSelector()
-            settings_path = f"{dataset}/{meta_feature}/{MF_COMBINATION}/{fold_id}"
-            feat_ranking = fs.feature_importance(settings_path, X_train, y_train, n_feats=nf)
-            X_train = np.take(X_train, feat_ranking, axis=1)
-            X_test = np.take(X_test, feat_ranking, axis=1)
-        
+
+        dir_dest = f"{dir_dest}/fold_{fold_id}"
         # Optimization/Training.
 
         file_model = f"{dir_dest}/model.joblib"
@@ -134,10 +129,11 @@ if __name__ == "__main__":
         )
 
         # Prediction
-        y_pred = optuna_search.predict(X_test)
+        probas = optuna_search.predict_proba(X_test)
+        y_pred = probas.argmax(axis=1)
         f1_macro = f1_score(y_test, y_pred, average="macro")
         f1_micro = f1_score(y_test, y_pred, average="micro")
-        
+
         msg = f"""
         \tF1-Macro: {f1_macro:.4f}
         \tF1-Micro: {f1_micro:.4f}
@@ -152,7 +148,7 @@ if __name__ == "__main__":
         }
         with open(file_scoring, "w+", encoding="utf-8") as fp:
             json.dump(scoring, fp, ensure_ascii=False, indent=4)
-        
-        # Saving the prediction values.
-        y_pred_file = f"{dir_dest}/y_pred"
-        np.save(y_pred_file, y_pred, allow_pickle=True)
+
+        # Saving probabilities.
+        probas_path = f"{dir_dest}/probas"
+        np.savez(probas_path, X_test=probas, allow_pickle=True)
