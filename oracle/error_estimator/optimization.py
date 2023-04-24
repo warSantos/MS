@@ -50,9 +50,11 @@ def get_clf(clf="xgboost", n_jobs=25):
             "bootstrap": CategoricalDistribution([True, False])
         }
         DEFAULT_HYP = {
-            "n_estimators": 300,
-            "max_depth": 5,
-            "min_samples_leaf": 2
+            "n_estimators": 100,
+            "max_depth": 7,
+            "min_samples_leaf": 4,
+            "bootstrap": True,
+            "min_samples_split": 8
         }
         return CLF_RF, HYP_RF, DEFAULT_HYP
     else:
