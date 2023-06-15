@@ -17,7 +17,14 @@ def load_mfs(data_source: str,
              fold: int,
              n_folds: int,
              train_test: str):
-
+    
+    base = f"/home/welton/data/representations/{dataset}/{n_folds}_folds/bert/{fold}"
+    attn_feats = np.load(f"{base}/{train_test}.npz")[f"X_{train_test}"]
+    n_docs, dim = attn_feats.shape
+    attn_feats = np.tile(attn_feats, 7)
+    return attn_feats.reshape(n_docs, dim, -1)
+    
+    """
     mf_set_sufix = "centroids-ratios_dist_neigborhood_probas_probas-based"
     features = []
     clf_sufix_set = '/'.join(
@@ -25,7 +32,7 @@ def load_mfs(data_source: str,
     for clf, _ in clfs:
         mf_input_dir = f"{data_source}/{dataset}/{n_folds}_folds/{clf_sufix_set}/{mf_set_sufix}/{clf}/{fold}"
         features.append(
-            np.load(f"{mf_input_dir}/x_{train_test}.npz")[f"X_{train_test}"][:, :7])
+            np.load(f"{mf_input_dir}/x_{train_test}.npz")[f"X_{train_test}"][:, :18])
 
     attn_feats = []
     for doc_idx in np.arange(features[0].shape[0]):
@@ -35,6 +42,8 @@ def load_mfs(data_source: str,
         )
     #print(len(attn_feats), attn_feats[0].shape)
     return attn_feats
+    """
+
 
 
 def get_error_est_mfs(data_source: str,

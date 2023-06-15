@@ -5,8 +5,11 @@ from itertools import product
 from sklearn.metrics import f1_score
 from sklearn.model_selection import train_test_split
 
+import torch
+torch.manual_seed(42)
 from torch.utils.data import DataLoader
 import pytorch_lightning as pl
+from pytorch_lightning import loggers
 
 from utils import (transform_probas,
                    load_probs_fold,
@@ -26,17 +29,23 @@ DATASETS = settings["DATASETS"]
 CLFS_SETS = settings["CLFS_SETS"]
 N_FOLDS = settings["N_FOLDS"]
 
-meta_layer_name = settings["META_LAYER"]
-use_mf = settings["USE_MF"]
+META_LAYERS = settings["META_LAYER"]
+USE_MF = settings["USE_MF"]
 base_output = settings["OUTPUT"]
 mf_input_dir = settings["MF_INPUT_DIR"]
 apply_upper = settings["APPLY_UPPER"]
+BATCH_SIZE = settings["BATCH_SIZE"]
 
-iters = product(DATASETS, CLFS_SETS, np.arange(N_FOLDS))
+iters = product(DATASETS,
+                CLFS_SETS,
+                USE_MF,
+                META_LAYERS,
+                BATCH_SIZE,
+                np.arange(N_FOLDS))
 
 probs_only = True
 
-for dataset, c_set, fold in iters:
+for dataset, c_set, use_mf, meta_layer_name, batch_size, fold in iters:
 
     clf_set = settings[c_set]
 
@@ -73,15 +82,14 @@ for dataset, c_set, fold in iters:
 
     clfs_number = len(clf_set)
     classes_number = X_train[0].shape[1]
-    max_epochs = 80
-    batch_size = 128
+    max_epochs = settings["EPOCHS"]
 
     train_loader = DataLoader(dataset=StackingDataset(
-        X_train, y_train, attn_x_train, attn_y_train), batch_size=batch_size, num_workers=16)
+        X_train, y_train, attn_x_train, attn_y_train), batch_size=batch_size, num_workers=6)
     val_loader = DataLoader(dataset=StackingDataset(
-        X_val, y_val, attn_x_val, attn_y_val), batch_size=batch_size, num_workers=16)
+        X_val, y_val, attn_x_val, attn_y_val), batch_size=batch_size, num_workers=6)
     test_loader = DataLoader(dataset=StackingDataset(
-        X_test, y_test, attn_x_test, attn_y_test), batch_size=batch_size, num_workers=16)
+        X_test, y_test, attn_x_test, attn_y_test), batch_size=batch_size, num_workers=6)
 
     if meta_layer_name == "single_opt":
         
@@ -91,25 +99,34 @@ for dataset, c_set, fold in iters:
                                        1,
                                        0.1,
                                        apply_upper,
-                                       settings["SUM_LOSSES"])
+                                       False)
         print("Single optimizer meta layer loaded.")
     elif meta_layer_name == "dual_opt":
 
         meta_layer = DualOptmizerML(classes_number,
                                     clfs_number,
                                     attn_x_train[0].shape[1],
-                                    classes_number,
+                                    1,
                                     0.1,
                                     apply_upper)
         print("Dual optimizer meta layer loaded.")
     else:
 
         raise("Model option not valid. The options are: single_opt and dual_opt.")
+    
+    # Making logdir.
+    clf_sufix = '/'.join(sorted([f"{c[0]}_{c[1]}" for c in clf_set]))
+    setup_str = f"{dataset}/{N_FOLDS}_folds/attention/{meta_layer_name}/use_mf_{use_mf}/batch_{batch_size}/{clf_sufix}"
+    output_dir = f"{base_output}/{setup_str}/fold_{fold}"
+    os.makedirs(output_dir, exist_ok=True)
 
+    tensorboard_dir = f"tensorboard/{setup_str}"
+    tb_logger = loggers.TensorBoardLogger(save_dir=f"{tensorboard_dir}/tensorboard")
     trainer = pl.Trainer(accelerator='gpu',
                          devices=1,
                          max_epochs=max_epochs,
-                         callbacks=[meta_layer.get_stoper()])
+                         callbacks=[meta_layer.get_stoper(epochs=max_epochs)],
+                         logger=tb_logger)
 
     trainer.fit(meta_layer, train_dataloaders=train_loader,
                 val_dataloaders=val_loader)
@@ -122,13 +139,9 @@ for dataset, c_set, fold in iters:
 
     print(f"[DATASET: {dataset} / FOLD - {fold}] Macro: {macro} - Micro: {micro}")
 
-    sufix = '/'.join(sorted([f"{c[0]}/{c[1]}" for c in clf_set]))
-    output_dir = f"{base_output}/{dataset}/{N_FOLDS}_folds/attention/{meta_layer_name}/use_mf_{use_mf}/{sufix}/{fold}"
-    
-    os.makedirs(output_dir, exist_ok=True)
     with open(f"{output_dir}/scoring.json", 'w') as fd:
         scoring = {
-            "macro": macro,
-            "micro": micro
+            "f1_macro": macro,
+            "f1_micro": micro
         }
         json.dump(scoring, fd)
