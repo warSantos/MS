@@ -110,6 +110,10 @@ for dataset_setup, clf, rep in iterations:
         if DO_TEST:
 
             X_test_path = f"{output_dir}/test"
+            
+            if os.path.exists(f"{X_test_path}.npz"):
+                continue
+
             estimator = execute_optimization(
                 classifier_name=clf,
                 output_dir=output_dir,
@@ -144,6 +148,10 @@ for dataset_setup, clf, rep in iterations:
 
             print("\tBuilding Train Probas.")
             train_probas_path = f"{output_dir}/train"
+            
+            if os.path.exists(f"{train_probas_path}.npz"):
+                continue
+            
             X_train_probas = build_train_probas(
                 clf,
                 output_dir,
