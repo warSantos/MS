@@ -1,3 +1,4 @@
+import numpy as np
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.neighbors import NearestCentroid
@@ -61,6 +62,7 @@ HYP_KNN = {
 
 # XGBoost
 CLF_XGB = XGBClassifier(random_state=42, tree_method='gpu_hist', verbosity=0)
+#CLF_XGB = XGBClassifier(random_state=42, tree_method='hist', verbosity=0)
 HYP_XGB = {
     "n_estimators": IntDistribution(low=100, high=1000, step=50),
     "learning_rate": FloatDistribution(low=.01, high=.5),
@@ -127,9 +129,15 @@ def get_classifier(
         #classifier.set_params(**{"n_jobs": n_jobs})
     elif classifier_name == "random_forest":
         classifier, hyperparameters = CLF_RF, HYP_RF
-    elif classifier == "centroid":
+    elif classifier_name == "centroid":
         classifier, hyperparameters = CLF_NC, HYP_NC
     else:
         raise ValueError(f"Classifier {classifier_name} does not exits.")
 
     return classifier, hyperparameters
+
+def fix_labels(y: np.ndarray):
+
+    if np.min(y) > 0:
+        return y - 1
+    return y
