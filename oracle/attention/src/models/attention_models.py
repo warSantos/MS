@@ -1,8 +1,10 @@
+import numpy as np
+
 import torch
 from torch import nn
 from torch.optim import AdamW
 import torch.nn.functional as F
-from torch.optim.lr_scheduler import ReduceLROnPlateau, OneCycleLR, CyclicLR
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from torchmetrics import F1Score
 
@@ -10,13 +12,7 @@ import pytorch_lightning as pl
 from pytorch_lightning import loggers
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 
-
-import numpy as np
-
-from src.custom_loss import AttnLogLoss, DiffMatrixLoss, ExpandedLoss
-
-torch.manual_seed(42)
-
+from src.custom_loss import AttnLogLoss, ExpandedLoss
 
 class MultiHeadAttentionEncoder(pl.LightningModule):
 
@@ -346,7 +342,6 @@ class ExpandedAttention(pl.LightningModule):
 
         opt = AdamW(self.parameters(), lr=1e-3, weight_decay=1e-4)
         sch = ReduceLROnPlateau(opt, "max", patience=1, factor=1e-3)
-        # sch = CyclicLR(opt, base_lr=1e-5, max_lr=1e-2, mode='triangular2', cycle_momentum=False)
 
         optimizer = {
             "optimizer": opt,

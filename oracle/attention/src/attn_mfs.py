@@ -18,7 +18,7 @@ def load_mfs(data_source: str,
              n_folds: int,
              train_test: str):
     
-    base = f"/home/welton/data/representations/{dataset}/{n_folds}_folds/bert/{fold}"
+    base = f"{data_source}/representations/{dataset}/{n_folds}_folds/bert/{fold}"
     attn_feats = np.load(f"{base}/{train_test}.npz")[f"X_{train_test}"]
     n_docs, dim = attn_feats.shape
     attn_feats = np.tile(attn_feats, 7)
