@@ -5,7 +5,6 @@ from itertools import product
 import numpy as np
 from sklearn.metrics import f1_score
 
-import torch
 from torch.utils.data import DataLoader
 from pytorch_lightning import loggers
 

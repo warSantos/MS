@@ -11,12 +11,17 @@ def transform_probas(probas_set: list):
 
     return features
 
-def load_probs_fold(dataset: str, clfs: list, fold: int, attention_mode=True):
+def load_probs_fold(data_source: str,
+                    dataset: str,
+                    clfs: list,
+                    fold: int,
+                    n_folds: int,
+                    attention_mode=True):
 
     clfs_probs_train = []
     clfs_probs_test = []
     for clf, proba_type in clfs:
-        probs_dir = f"/home/welton/data/{proba_type}/split_10/{dataset}/10_folds/{clf}/{fold}/"
+        probs_dir = f"{data_source}/{proba_type}/split_{n_folds}/{dataset}/{n_folds}_folds/{clf}/{fold}/"
         clfs_probs_train.append(np.load(f"{probs_dir}/train.npz")["X_train"])
         clfs_probs_test.append(np.load(f"{probs_dir}/test.npz")["X_test"])
     
@@ -50,10 +55,10 @@ def get_attention_labels(clfs: list, uppers: dict, train_test: str):
     return attention_labels
 
 
-def load_labels_fold(dataset: str, fold: int):
+def load_labels_fold(data_source: str, dataset: str, fold: int, n_folds: int):
 
-    y_train = np.load(f"/home/welton/data/datasets/labels/split_10/{dataset}/{fold}/train.npy")
-    y_test = np.load(f"/home/welton/data/datasets/labels/split_10/{dataset}/{fold}/test.npy")
+    y_train = np.load(f"{data_source}/datasets/labels/split_{n_folds}/{dataset}/{fold}/train.npy")
+    y_test = np.load(f"{data_source}/datasets/labels/split_{n_folds}/{dataset}/{fold}/test.npy")
     return y_train, y_test
 
 def get_truth_table(rows: int, cols: int):

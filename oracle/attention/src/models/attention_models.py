@@ -14,7 +14,7 @@ from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 
 from src.custom_loss import AttnLogLoss, ExpandedLoss
 
-class MultiHeadAttentionEncoder(pl.LightningModule):
+class SelfAttention(pl.LightningModule):
 
     def __init__(self,
                  hidden: int,
@@ -22,7 +22,7 @@ class MultiHeadAttentionEncoder(pl.LightningModule):
                  dropout: float,
                  apply_upper_bound: bool = False):
 
-        super(MultiHeadAttentionEncoder, self).__init__()
+        super(SelfAttention, self).__init__()
 
         self.apply_upper_bound = apply_upper_bound
         print(f"Applying upper bound: {apply_upper_bound}")
@@ -68,7 +68,7 @@ class BaseMetaLayer(pl.LightningModule):
                  apply_upper_bound: bool = False):
         super().__init__()
 
-        self.attn_encoder = MultiHeadAttentionEncoder(
+        self.attn_encoder = SelfAttention(
             attention_size,
             num_heads,
             dropout,
@@ -293,11 +293,12 @@ class ExpandedAttention(pl.LightningModule):
         self.clfs_number = clfs_number
         self.expansion_factor = 2 ** self.clfs_number
 
-        self.attn_encoder = MultiHeadAttentionEncoder(attention_size,
+        self.attn_encoder = SelfAttention(attention_size,
                                                       num_heads,
                                                       dropout,
                                                       self.apply_upper_bound)
-        self.attn_loss = ExpandedLoss()
+        #self.attn_loss = ExpandedLoss()
+        self.attn_loss = torch.nn.MSELoss()
 
     def forward(self, x):
 
