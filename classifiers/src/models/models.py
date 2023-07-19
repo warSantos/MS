@@ -4,7 +4,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.neighbors import NearestCentroid
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import LinearSVC, SVC
-from lightgbm import LGBMClassifier
+#from lightgbm import LGBMClassifier
 from sklearn.neighbors import KNeighborsClassifier
 from xgboost import XGBClassifier
 
@@ -80,12 +80,12 @@ HYP_RF = {
     "max_depth": IntDistribution(low=1, high=14)
 }
 
-CLF_GBM = LGBMClassifier(objective='multiclass', random_state=42)
-HYP_GBM = {
-    "n_estimators": IntDistribution(low=100, high=500, step=50),
-    "num_leaves": IntDistribution(low=16, high=56, step=5),
-    "max_depth": IntDistribution(low=3, high=13, step=2)
-}
+#CLF_GBM = LGBMClassifier(objective='multiclass', random_state=42)
+#HYP_GBM = {
+#    "n_estimators": IntDistribution(low=100, high=500, step=50),
+#    "num_leaves": IntDistribution(low=16, high=56, step=5),
+#    "max_depth": IntDistribution(low=3, high=13, step=2)
+#}
 
 ALIAS = {
     "knn/pr": "kpr",
