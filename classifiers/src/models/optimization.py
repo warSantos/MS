@@ -16,6 +16,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 from src.models.models import get_classifier
+from src.aws.awsio import store_json_in_aws
 
 def load_params(params_path: str):
 
@@ -27,6 +28,8 @@ def save_params(optuna_search: OptunaSearchCV, params_path: str):
 
     with open(params_path, 'w') as fd:
         json.dump(optuna_search.best_params_, fd)
+    
+    store_json_in_aws(params_path, optuna_search.best_params_)
 
 def run_model(classifier_name: str,
               params_path: str,

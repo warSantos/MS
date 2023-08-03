@@ -12,6 +12,10 @@ from src.models.models import ALIAS, fix_labels
 from src.models.calibration import probabilities_calibration
 from src.models.optimization import execute_optimization
 from src.train_probas.train_probas import build_train_probas
+from src.aws.awsio import (load_reps_from_aws,
+                           store_nparrays_in_aws,
+                           store_json_in_aws,
+                           aws_path_exists)
 
 # Warning Control.
 import warnings
@@ -23,7 +27,9 @@ warnings.filterwarnings("ignore")
 os.environ["PYTHONWARNINGS"] = "ignore"  # Also affect sub-processes
 
 
-def report_scoring(y_test, y_pred, output_dir):
+def report_scoring(y_test: np.ndarray,
+                   y_pred: np.ndarray,
+                   output_dir: str):
 
     scoring = {}
     scoring["macro"] = f1_score(y_test, y_pred, average="macro")
@@ -33,8 +39,11 @@ def report_scoring(y_test, y_pred, output_dir):
     print(f"\n\tMacro: {scoring['macro'] * 100}")
     print(f"\tMicro: {scoring['micro'] * 100}\n")
 
-    with open(f"{output_dir}/scoring.json", "w") as fd:
-        json.dump(scoring, fd)
+    #with open(f"{output_dir}/scoring.json", "w") as fd:
+    #    json.dump(scoring, fd)
+
+    store_json_in_aws(f"{output_dir}/scoring.json",
+                      scoring)
 
 
 try:
@@ -59,6 +68,11 @@ DO_TRAIN_CALIB = settings["DO_TRAIN_CALIB"]
 LOAD_MODEL = settings["LOAD_MODEL"]
 CALIB_METHOD = settings["CALIB_METHOD"]
 CLFS_SETUP = settings["CLFS_SETUP"]
+AWS_BUCKET = settings["AWS_BUCKET"]
+AWS_PROFILE = settings["AWS_PROFILE"]
+os.environ["DATA_SOURCE"] = DATA_SOURCE
+os.environ["AWS_BUCKET"] = settings["AWS_BUCKET"]
+os.environ["AWS_PROFILE"] = settings["AWS_PROFILE"]
 
 probas_dir = "normal_probas"
 
@@ -66,7 +80,6 @@ iterations = product(
     DATASETS,
     CLFS,
     REP)
-
 
 for dataset_setup, clf, rep in iterations:
     dataset, n_folds = dataset_setup
@@ -80,17 +93,26 @@ for dataset_setup, clf, rep in iterations:
         print(f" {dataset.upper()} - [{clf.upper()} / {rep.upper()}] - FOLD: {fold}")
 
         # Loading representations.
-        reps_dir = f"{DATA_SOURCE}/representations/{dataset}/{n_folds}_folds/{rep}/{fold}"
-        train_load = np.load(f"{reps_dir}/train.npz", allow_pickle=True)
-        test_load = np.load(f"{reps_dir}/test.npz", allow_pickle=True)
+        #reps_dir = f"{DATA_SOURCE}/representations/{dataset}/{n_folds}_folds/{rep}/{fold}"
+        #train_load = np.load(f"{reps_dir}/train.npz", allow_pickle=True)
+        #test_load = np.load(f"{reps_dir}/test.npz", allow_pickle=True)
 
-        full_X_train = train_load["X_train"].tolist()
-        X_test = test_load["X_test"].tolist()
+        reps_dir = f"representations/{dataset}/{n_folds}_folds/{rep}/{fold}"
+        train_load = load_reps_from_aws(f"{reps_dir}/train.npz", "train")
+        test_load = load_reps_from_aws(f"{reps_dir}/test.npz", "test")
+
+        if dataset == "mini_20ng":
+            full_X_train = train_load["X_train"]
+            X_test = test_load["X_test"]
+        else:
+            full_X_train = train_load["X_train"].tolist()
+            X_test = test_load["X_test"].tolist()
+        
 
         full_y_train = fix_labels(train_load["y_train"])
         y_test = fix_labels(test_load["y_test"])
 
-        if X_test.shape[0] < 2000:
+        if X_test.shape[1] < 2000:
             X_test = X_test.toarray()
             full_X_train = full_X_train.toarray()
             
@@ -107,8 +129,10 @@ for dataset_setup, clf, rep in iterations:
         os.makedirs(output_dir, exist_ok=True)
 
         # If test probas weren't computed yet.
-        X_test_path = f"{output_dir}/test"
-        if DO_TEST and not os.path.exists(f"{X_test_path}.npz"):
+        #X_test_path = f"{output_dir}/test"
+        X_test_path = f"{output_dir}/test.npz"
+        #if DO_TEST and not os.path.exists(f"{X_test_path}.npz"):
+        if DO_TEST and not aws_path_exists(X_test_path):
 
             estimator = execute_optimization(
                 classifier_name=clf,
@@ -121,13 +145,17 @@ for dataset_setup, clf, rep in iterations:
 
             probas = estimator.predict_proba(X_test)
             y_pred = probas.argmax(axis=1)
-            np.savez(X_test_path, X_test=probas)
+            #np.savez(X_test_path, X_test=probas)
+            store_nparrays_in_aws(X_test_path,
+                                  {"X_test": probas})
             print("Normal.")
             report_scoring(y_test, y_pred, output_dir)
 
             if SAVE_PROBAS_CALIB:
                 probas_val = estimator.predict_proba(X_test)
-                np.savez(X_test_path.replace('test', 'eval'), X_eval=probas_val)
+                #np.savez(X_test_path.replace('test', 'eval'), X_eval=probas_val)
+                store_nparrays_in_aws(X_test_path.replace('test', 'eval'),
+                                      {"X_eval": probas_val})
 
             if DO_TEST_CALIB:
                 calib_output_dir = f"{DATA_SOURCE}/{CALIB_METHOD}/{sp_setting}/{dataset}/{n_folds}_folds/{ALIAS[f'{clf}/{rep}']}/{fold}"
@@ -135,13 +163,18 @@ for dataset_setup, clf, rep in iterations:
                 calib_est = probabilities_calibration(
                     estimator, X_val, y_val, CALIB_METHOD)
                 c_probas = calib_est.predict_proba(X_test)
-                np.savez(f"{calib_output_dir}/test",
-                        X_test=c_probas, y_test=y_test)
+                #np.savez(f"{calib_output_dir}/test",
+                #        X_test=c_probas, y_test=y_test)
+                store_nparrays_in_aws(f"{calib_output_dir}/test",
+                                      {"X_test":c_probas, "y_test": y_test})
+                
                 print("Calibrated.")
                 report_scoring(y_test, c_probas.argmax(axis=1), calib_output_dir)
 
-        train_probas_path = f"{output_dir}/train"
-        if DO_TRAIN and not os.path.exists(f"{train_probas_path}.npz"):
+        #train_probas_path = f"{output_dir}/train"
+        train_probas_path = f"{output_dir}/train.npz"
+        #if DO_TRAIN and not os.path.exists(f"{train_probas_path}.npz"):
+        if DO_TRAIN and not aws_path_exists(train_probas_path):
 
             print("\tBuilding Train Probas.")
             X_train_probas = build_train_probas(
@@ -157,10 +190,14 @@ for dataset_setup, clf, rep in iterations:
                 opt_n_jobs=OPT_N_JOBS,
                 load_model=LOAD_MODEL)
             
-            np.savez(train_probas_path,
-                    X_train=X_train_probas["probas"], y_train=full_y_train)
+            #np.savez(train_probas_path,
+            #        X_train=X_train_probas["probas"], y_train=full_y_train)
+            store_nparrays_in_aws(train_probas_path,
+                                  {"X_train": X_train_probas["probas"], "y_train": full_y_train})
 
             if X_train_probas["calib_probas"] is not None:
                 calib_output_dir = f"{DATA_SOURCE}/{CALIB_METHOD}/{sp_setting}/{dataset}/{n_folds}_folds/{ALIAS[f'{clf}/{rep}']}/{fold}"
-                np.savez(f"{calib_output_dir}/train",
-                        X_train=X_train_probas["calib_probas"], y_train=full_y_train)
+                #np.savez(f"{calib_output_dir}/train",
+                #        X_train=X_train_probas["calib_probas"], y_train=full_y_train)
+                store_nparrays_in_aws(f"{calib_output_dir}/train",
+                                  {"X_train": X_train_probas["calib_probas"], "y_train": full_y_train})
