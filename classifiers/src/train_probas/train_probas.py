@@ -7,23 +7,8 @@ from sklearn.metrics import f1_score, accuracy_score
 
 from src.models.optimization import execute_optimization
 from src.models.calibration import probabilities_calibration
-
-
-def report_scoring(y_test: np.ndarray,
-                   y_pred: np.ndarray,
-                   output_dir: str,
-                   fold: int):
-
-    scoring = {}
-    scoring["macro"] = f1_score(y_test, y_pred, average="macro")
-    scoring["micro"] = f1_score(y_test, y_pred, average="micro")
-    scoring["accuracy"] = accuracy_score(y_test, y_pred)
-    print(f"\t\tFOLD {fold} - Macro: {scoring['macro']}")  # , end='')
-
-    # Saving model's f1 and accuracy.
-    with open(f"{output_dir}/scoring.json", "w") as fd:
-        json.dump(scoring, fd)
-
+from src.aws.awsio import store_nparrays_in_aws
+from src.utils.utils import report_scoring
 
 def build_train_probas(
         clf: str,
@@ -92,11 +77,16 @@ def build_train_probas(
         
         if save_probas_calib:
             eval_probas = estimator.predict_proba(X_val)
-            np.savez(f"{output_dir}/test.npz",
-                     X_test=test_probas, y_test=y_test)
-            np.savez(f"{output_dir}/eval.npz",
-                     X_eval=eval_probas, y_eval=y_val)
-            np.savez(f"{output_dir}/align.npz", align=align)
+            #np.savez(f"{output_dir}/test.npz",
+            #         X_test=test_probas, y_test=y_test)
+            #np.savez(f"{output_dir}/eval.npz",
+            #         X_eval=eval_probas, y_eval=y_val)
+            #np.savez(f"{output_dir}/align.npz", align=align)
+            store_nparrays_in_aws(f"{output_dir}/test.npz",
+                     {"X_test": test_probas, "y_test": y_test})
+            store_nparrays_in_aws(f"{output_dir}/eval.npz",
+                     {"X_eval": eval_probas, "y_eval": y_val})
+            store_nparrays_in_aws(f"{output_dir}/align.npz", {"align": align})
         
         if do_calib:
             print("\tCalibrated.")
@@ -106,8 +96,11 @@ def build_train_probas(
             calib_est = probabilities_calibration(
                 estimator, X_val, y_val, calib_method)
             c_probas = calib_est.predict_proba(X_test)
-            np.savez(f"{calib_output_dir}/test",
-                     X_test=c_probas, y_test=y_test)
+            
+            #np.savez(f"{calib_output_dir}/test",
+            #         X_test=c_probas, y_test=y_test)
+            store_nparrays_in_aws(f"{calib_output_dir}/test.npz",
+                     {"X_test": c_probas, "y_test": y_test})
             
             report_scoring(y_test, c_probas.argmax(
                 axis=1), calib_output_dir, fold)

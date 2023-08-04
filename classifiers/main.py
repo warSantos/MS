@@ -17,6 +17,8 @@ from src.aws.awsio import (load_reps_from_aws,
                            store_json_in_aws,
                            aws_path_exists)
 
+from src.utils.utils import report_scoring
+
 # Warning Control.
 import warnings
 from optuna.exceptions import ExperimentalWarning
@@ -25,25 +27,6 @@ from optuna.logging import set_verbosity, WARNING
 set_verbosity(WARNING)
 warnings.filterwarnings("ignore")
 os.environ["PYTHONWARNINGS"] = "ignore"  # Also affect sub-processes
-
-
-def report_scoring(y_test: np.ndarray,
-                   y_pred: np.ndarray,
-                   output_dir: str):
-
-    scoring = {}
-    scoring["macro"] = f1_score(y_test, y_pred, average="macro")
-    scoring["micro"] = f1_score(y_test, y_pred, average="micro")
-    scoring["accuracy"] = accuracy_score(y_test, y_pred)
-
-    print(f"\n\tMacro: {scoring['macro'] * 100}")
-    print(f"\tMicro: {scoring['micro'] * 100}\n")
-
-    #with open(f"{output_dir}/scoring.json", "w") as fd:
-    #    json.dump(scoring, fd)
-
-    store_json_in_aws(f"{output_dir}/scoring.json",
-                      scoring)
 
 
 try:
@@ -82,15 +65,15 @@ iterations = product(
     REP)
 
 for dataset_setup, clf, rep in iterations:
-    dataset, n_folds = dataset_setup
-    for fold in np.arange(n_folds):
+    dataset, n_folds, fold_list = dataset_setup
+    for fold in fold_list:
 
         sp_setting = f"split_{n_folds}{WITH_VAL}"
 
         N_JOBS = CLFS_SETUP[clf]["n_jobs"]
         OPT_N_JOBS = CLFS_SETUP[clf]["opt_n_jobs"]
 
-        print(f" {dataset.upper()} - [{clf.upper()} / {rep.upper()}] - FOLD: {fold}")
+        print(f"{dataset.upper()} - [{clf.upper()} / {rep.upper()}] - FOLD: {fold}")
 
         # Loading representations.
         #reps_dir = f"{DATA_SOURCE}/representations/{dataset}/{n_folds}_folds/{rep}/{fold}"
@@ -165,7 +148,7 @@ for dataset_setup, clf, rep in iterations:
                 c_probas = calib_est.predict_proba(X_test)
                 #np.savez(f"{calib_output_dir}/test",
                 #        X_test=c_probas, y_test=y_test)
-                store_nparrays_in_aws(f"{calib_output_dir}/test",
+                store_nparrays_in_aws(f"{calib_output_dir}/test.npz",
                                       {"X_test":c_probas, "y_test": y_test})
                 
                 print("Calibrated.")
@@ -199,5 +182,5 @@ for dataset_setup, clf, rep in iterations:
                 calib_output_dir = f"{DATA_SOURCE}/{CALIB_METHOD}/{sp_setting}/{dataset}/{n_folds}_folds/{ALIAS[f'{clf}/{rep}']}/{fold}"
                 #np.savez(f"{calib_output_dir}/train",
                 #        X_train=X_train_probas["calib_probas"], y_train=full_y_train)
-                store_nparrays_in_aws(f"{calib_output_dir}/train",
+                store_nparrays_in_aws(f"{calib_output_dir}/train.npz",
                                   {"X_train": X_train_probas["calib_probas"], "y_train": full_y_train})
