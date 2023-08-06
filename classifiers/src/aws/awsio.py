@@ -18,10 +18,10 @@ def load_reps_from_aws(file_path: str,
         response = client.get_object(Bucket=os.environ["AWS_BUCKET"], Key=aws_file_path)
         with BytesIO(response['Body'].read()) as fd:
             fd.seek(0)
-            loader = np.load(fd)
+            loader = np.load(fd, allow_pickle=True)
             return { 
-                f"X_{train_test}": loader[f"X_{train_test}"][:500],
-                f"y_{train_test}": loader[f"y_{train_test}"][:500]
+                f"X_{train_test}": loader[f"X_{train_test}"],
+                f"y_{train_test}": loader[f"y_{train_test}"]
             }
     except Exception as e:
         print("Error:", e)
