@@ -2,6 +2,8 @@ from cProfile import label
 from sys import exit
 import os
 import json
+import boto3
+import requests
 import numpy as np
 from itertools import product
 from sklearn.metrics import f1_score, accuracy_score
@@ -184,3 +186,10 @@ for dataset_setup, clf, rep in iterations:
                 #        X_train=X_train_probas["calib_probas"], y_train=full_y_train)
                 store_nparrays_in_aws(f"{calib_output_dir}/train.npz",
                                   {"X_train": X_train_probas["calib_probas"], "y_train": full_y_train})
+                
+
+# Interrupting istance after the models get done.
+response = requests.get("http://169.254.169.254/latest/meta-data/instance-id")
+instance_id = response.content.decode()
+ec2 = boto3.client('ec2')
+ec2.stop_instances(InstanceIds=[instance_id])
