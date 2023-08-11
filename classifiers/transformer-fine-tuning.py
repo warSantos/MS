@@ -48,8 +48,9 @@ def data_process(data_dir, dataset, fold, n_folds):
 
     # For binary classification if there is a -1 label, replace it for 0.
     labels[labels == -1] = 0
+    
     # If the min class valeu is 1, subtract 1 from every label.
-    if np.min(labels == 1):
+    if np.min(labels) == -1:
         labels = labels - 1
 
     sp_set = split_settings[split_settings.fold_id == fold]
@@ -71,9 +72,12 @@ class CustomDataset(torch.utils.data.Dataset):
         self.labels = labels
 
     def __getitem__(self, idx):
-        item = {key: torch.tensor(val[idx]) 
-          for key, val in self.encodings.items()}
+        
+        item = { key: torch.tensor(val[idx]) 
+                    for key, val in self.encodings.items() }
+        
         item['labels'] = torch.tensor(self.labels[idx])
+        
         return item
 
     def __len__(self):
@@ -84,7 +88,7 @@ class Transformer():
     def __init__(
         self,
         model_name,
-        batch_size=32,
+        batch_size=64,
         limit_k=20,
         max_epochs=5,
         lr=5e-5,
@@ -315,7 +319,7 @@ def get_train_probas(X, y, base_path, num_labels, model_name, n_splits=4):
     np.savez(probas_path, X_train=probas)
 
 
-with open("data/nn_settings.json", 'r') as fd:
+with open("data/settings.json", 'r') as fd:
     settings = json.load(fd)
 
 SEED = settings["SEED"]
@@ -329,7 +333,7 @@ n_sub_folds = settings["N_SUB_FOLDS"]
 for dataset, n_folds in datasets:
     for classifier_name, classifier_short_name in classifiers:
         print(f"CLF: {classifier_name.upper()}")
-        for fold in np.arange(10):
+        for fold in np.arange(n_folds):
             
             from transformers import logging
             logging.set_verbosity_error()        

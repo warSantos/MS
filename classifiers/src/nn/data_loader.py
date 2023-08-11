@@ -14,12 +14,10 @@ class Loader:
     def __init__(self,
                  data_dir: str,
                  dataset: str,
-                 fold: int,
                  n_folds: int) -> None:
 
         self.data_dir = data_dir
         self.dataset = dataset
-        self.fold = fold
         self.n_folds = n_folds
 
         # Loading spliting settings.
@@ -43,10 +41,10 @@ class Loader:
         y[y == -1] = 0
         
         # If the min class valeu is 1, subtract 1 from every label.
-        if np.min(y == 1):
+        if np.min(y) == 1:
             y = y - 1
+        
         self.y = y
-
         self.num_labels = len(np.unique(y))
 
     def get_X_y(self, fold: int, set_name: str):

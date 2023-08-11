@@ -1,13 +1,18 @@
 import os
+
 import json
 from itertools import product
 
 import numpy as np
 import pandas as pd
+from scipy.special import softmax
 from sklearn.metrics import f1_score
 
 import torch
-from torch.nn.functional import softmax
+import pytorch_lightning as pl
+from pytorch_lightning.callbacks import ModelCheckpoint
+from pytorch_lightning import seed_everything
+
 from src.nn.data_loader import Loader
 from src.nn.model import Transformer, TextFormater
 from src.nn.data_loader import get_doc_by_id
@@ -27,6 +32,7 @@ iters = product(DATASETS, CLFS)
 
 for (dataset, n_folds), (clf_name, clf_short_name) in iters:
     
+    data_handler = Loader(DATA_SOURCE, dataset, n_folds)
     text_params = settings["TEXT_PARAMS"].copy()
     text_params["model_name"] = clf_name
     
@@ -42,8 +48,7 @@ for (dataset, n_folds), (clf_name, clf_short_name) in iters:
         eval_logits_path = f"{base_path}/eval_logits"
         test_logits_path = f"{base_path}/test_logits"
 
-        data_handler = Loader(DATA_SOURCE, dataset, fold, n_folds)
-
+        print(test_path)
         # Se este fold ainda não foi executado.
         if not os.path.exists(test_path):
             print("Builind test probabilities...")
@@ -60,18 +65,18 @@ for (dataset, n_folds), (clf_name, clf_short_name) in iters:
 
             # Setting model's parameters.
             model_params["len_data_loader"] = len(train)
-            model_params["num_classes"] = data_handler.num_labels
+            model_params["num_labels"] = data_handler.num_labels
             model = Transformer(**model_params)
 
             # Traning model.
-            model.fit(train, val)
-
+            trainer = model.fit(train, val)
+            
             # Predicting.
-            test_l = model.predict(test)
-            eval_l = model.predict(val)
+            test_l = np.vstack([ l["logits"] for l in trainer.predict(model, test) ])
+            eval_l = np.vstack([ l["logits"] for l in trainer.predict(model, val) ])
 
             # Saving outputs.
-            np.savez(test_path, X_test=softmax(test_l, axis=1))
+            np.savez(test_path, X_test=softmax(test_l, axis=1), y_test=y_test)
             np.savez(eval_logits_path, X_eval=eval_l, y_eval=y_val)
             np.savez(test_logits_path, X_test=test_l, y_test=y_test)
             
@@ -95,6 +100,6 @@ for (dataset, n_folds), (clf_name, clf_short_name) in iters:
             get_train_probas(base_path,
                              get_doc_by_id(X, sort),
                              np.hstack([y_train, y_val])[sort],
-                             data_handler.num_labels,
-                             clf_name,
-                             n_sub_folds)
+                             n_sub_folds,
+                             model_params,
+                             text_params)
