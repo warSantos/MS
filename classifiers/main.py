@@ -107,12 +107,8 @@ for dataset_setup, clf, rep in iterations:
         os.makedirs(output_dir, exist_ok=True)
 
         # If test probas weren't computed yet.
-        if DO_TEST:
-
-            X_test_path = f"{output_dir}/test"
-            
-            if os.path.exists(f"{X_test_path}.npz"):
-                continue
+        X_test_path = f"{output_dir}/test"
+        if DO_TEST and not os.path.exists(f"{X_test_path}.npz"):
 
             estimator = execute_optimization(
                 classifier_name=clf,
@@ -144,14 +140,10 @@ for dataset_setup, clf, rep in iterations:
                 print("Calibrated.")
                 report_scoring(y_test, c_probas.argmax(axis=1), calib_output_dir)
 
-        if DO_TRAIN:
+        train_probas_path = f"{output_dir}/train"
+        if DO_TRAIN and not os.path.exists(f"{train_probas_path}.npz"):
 
             print("\tBuilding Train Probas.")
-            train_probas_path = f"{output_dir}/train"
-            
-            if os.path.exists(f"{train_probas_path}.npz"):
-                continue
-            
             X_train_probas = build_train_probas(
                 clf,
                 output_dir,
