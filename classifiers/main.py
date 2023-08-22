@@ -68,7 +68,8 @@ iterations = product(
 
 for dataset_setup, clf, rep in iterations:
     dataset, n_folds, fold_list = dataset_setup
-    for fold in fold_list:
+    start, end = fold_list
+    for fold in range(start, end):
 
         sp_setting = f"split_{n_folds}{WITH_VAL}"
 
