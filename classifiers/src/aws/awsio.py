@@ -1,6 +1,7 @@
 import os
 import json
 import boto3
+import requests
 import numpy as np
 from io import BytesIO
 
@@ -71,3 +72,28 @@ def aws_path_exists(file_path: str):
         return True  # File exists
     except:
         return False  # File doesn't exist
+
+def aws_stop_instance():
+
+    # Getting the permission token.
+    url = "http://169.254.169.254/latest/api/token"
+    headers = {"X-aws-ec2-metadata-token-ttl-seconds": "21600"}
+    response = requests.put(url, headers=headers)
+    if response.status_code == 200:
+        token = response.text
+        print(f"Token: {token}")
+    else:
+        print(f"Error: {response.status_code} - {response.text}")
+
+    # Getting the instance ID.
+    url = "http://169.254.169.254/latest/meta-data/instance-id"
+    headers = {"X-aws-ec2-metadata-token": token}
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        instance_id = response.text
+        print(f"Instance ID: {instance_id}")
+    else:
+        print(f"Error: {response.status_code} - {response.text}")
+
+    ec2 = boto3.client('ec2')
+    ec2.stop_instances(InstanceIds=[instance_id])

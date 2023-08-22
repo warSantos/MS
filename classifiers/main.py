@@ -3,7 +3,6 @@ from sys import exit
 import os
 import json
 import boto3
-import requests
 import numpy as np
 from itertools import product
 from sklearn.metrics import f1_score, accuracy_score
@@ -17,7 +16,8 @@ from src.train_probas.train_probas import build_train_probas
 from src.aws.awsio import (load_reps_from_aws,
                            store_nparrays_in_aws,
                            store_json_in_aws,
-                           aws_path_exists)
+                           aws_path_exists,
+                           aws_stop_instance)
 
 from src.utils.utils import report_scoring
 
@@ -189,8 +189,5 @@ for dataset_setup, clf, rep in iterations:
                                   {"X_train": X_train_probas["calib_probas"], "y_train": full_y_train})
                 
 
-# Interrupting istance after the models get done.
-response = requests.get("http://169.254.169.254/latest/meta-data/instance-id")
-instance_id = response.content.decode()
-ec2 = boto3.client('ec2')
-ec2.stop_instances(InstanceIds=[instance_id])
+# Stoping instance.
+aws_stop_instance()
