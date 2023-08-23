@@ -2,6 +2,7 @@
 import os
 import nltk
 import string
+import jsonlines
 import numpy as np
 import pandas as pd
 from typing import Tuple, List
@@ -32,12 +33,21 @@ def replace_nan_inf(a, value=0):
     return a
 
 
-def save_mfs(dset, type_mf, fold, train_mfs, test_mfs, params_prefix=""):
+def save_mfs(output_dir,
+             dataset: str,
+             type_mf: str,
+             fold: int,
+             X_train: np.ndarray,
+             X_test: np.ndarray,
+             y_train: np.ndarray,
+             y_test: np.ndarray,
+             params_prefix: str = ""):
 
-    base_dir = f"data/features/{type_mf}/{params_prefix}/{fold}/{dset}/"
+    base_dir = f"{output_dir}/features/{type_mf}/{params_prefix}/{fold}/{dataset}/"
+    print(base_dir)
     os.makedirs(base_dir, exist_ok=True)
-    np.savez(f"{base_dir}/train", X_train=train_mfs)
-    np.savez(f"{base_dir}/test", X_test=test_mfs)
+    np.savez(f"{base_dir}/train", X_train=X_train, y_train=y_train)
+    np.savez(f"{base_dir}/test", X_test=X_test, y_test=y_test)
 
 # Remove punctuation from a text.
 # text: string to remove punctuation from.
@@ -106,31 +116,37 @@ def get_train_test(df, fold, fold_col="folds_id"):
 # Separate data in cv splits with stratified cross validation.
 # X: preditivie features.
 # y: labels (class of the documents).
-# dset: dataset's name.
+# dataset: dataset's name.
 # fold: if True, load the split settings instead make new ones.
-# save_cv: save split settings. It only works if the dset is not None and lfold is not None.
+# save_cv: save split settings. It only works if the dataset is not None and lfold is not None.
 
 
-def stratfied_cv(X, y, cv=10, dset=None, fold=None, save_cv=True, load_splits=False):
+def stratfied_cv(dataset: str,
+                 fold: int,
+                 X: np.ndarray,
+                 y: np.ndarray,
+                 n_splits: int,
+                 save_cv: bool,
+                 load_splits: bool = True):
 
-    if load_splits:
-        sp_dir = f"data/configs/splits/{dset}/{fold}"
-        sp_path = f"{sp_dir}/splits.pkl"
-        if os.path.exists(sp_path):
-            return pd.read_pickle(sp_path)
+    sp_dir = f"data/configs/splits/{dataset}/{fold}"
+    sp_path = f"{sp_dir}/{n_splits}_splits.pkl"
 
-    sfk = StratifiedKFold(n_splits=cv)
+    if load_splits and os.path.exists(sp_path):
+
+        return pd.read_pickle(sp_path)
+
+    sfk = StratifiedKFold(n_splits=n_splits)
     align_indexes = np.arange(X.shape[0])
     sfk.get_n_splits(X, y)
     indexes = [[fold, train_idxs, test_idxs, align_indexes[train_idxs], align_indexes[test_idxs]]
                for fold, (train_idxs, test_idxs) in enumerate(sfk.split(X, y))]
 
-    splits = pd.DataFrame(indexes, columns=["fold", "train", "test", "align_train", "align_test"])
+    splits = pd.DataFrame(
+        indexes, columns=["fold", "train", "test", "align_train", "align_test"])
 
-    if save_cv and fold is not None:
-        sp_dir = f"data/configs/splits/{dset}/{fold}"
+    if save_cv:
         os.makedirs(sp_dir, exist_ok=True)
-        sp_path = f"{sp_dir}/splits.pkl"
         splits.to_pickle(sp_path)
 
     return splits
@@ -174,6 +190,37 @@ def read_train_test_meta(
     X_test_meta = np.hstack(Xs_test)
 
     return X_train_meta, X_test_meta
+
+
+def load_y(labels_dir: str,
+           dataset: str,
+           fold: int):
+
+    ldir = f"{labels_dir}/{dataset}/{fold}"
+    return np.load(f"{ldir}/train.npy"), np.load(f"{ldir}/test.npy")
+
+
+def load_bert_reps(dataset: str, fold: int) -> Tuple[np.ndarray, np.ndarray]:
+
+    idxs = pd.read_pickle(
+        f"/home/welton/data/datasets/data/{dataset}/splits/split_10_with_val.pkl")
+    lines = jsonlines.open(
+        f"/home/welton/data/kaggle/{dataset}/{dataset}_bert{fold}.json")
+    reps = [[l["id"], l["bert"]] for l in lines]
+    df = pd.DataFrame(reps, columns=["id", "reps"])
+
+    X_train = np.vstack(
+        df.query(f"id == {idxs['train_idxs'][fold]}").reps.values.tolist())
+    X_val = np.vstack(
+        df.query(f"id == {idxs['val_idxs'][fold]}").reps.values.tolist())
+    X_test = np.vstack(
+        df.query(f"id == {idxs['test_idxs'][fold]}").reps.values.tolist())
+
+    sort = np.hstack(
+        [idxs['train_idxs'][fold], idxs['val_idxs'][fold]]).argsort()
+    X_train = np.vstack([X_train, X_val])[sort]
+
+    return X_train, X_test
 
 
 """

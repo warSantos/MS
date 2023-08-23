@@ -73,7 +73,9 @@ class MFKnn(object):
 	def transform(self, X):
 
 		#
-		istrain = True if self.csr_matrix_equal2(self.X_train, X) else False
+		#istrain = True if self.csr_matrix_equal2(self.X_train, X) else False
+		istrain = True if np.array_equal(self.X_train, X) else False
+		
 		#print(istrain)
 		n_neighbors = self.k+1 if istrain else self.k
 
