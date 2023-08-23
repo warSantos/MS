@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 from torch.optim import AdamW
 from transformers import get_scheduler, AutoModelForSequenceClassification
@@ -6,6 +7,7 @@ from torch.utils.data import DataLoader, Dataset
 
 import pytorch_lightning as pl
 from pytorch_lightning import seed_everything
+from pytorch_lightning.callbacks import ModelCheckpoint
 from torchmetrics import F1Score
 
 
@@ -72,7 +74,7 @@ class Transformer(pl.LightningModule):
     def __init__(self,
                  model_name,
                  len_data_loader,
-                 num_classes,
+                 num_labels,
                  limit_k=20,
                  max_epochs=5,
                  lr=5e-5,
@@ -87,14 +89,10 @@ class Transformer(pl.LightningModule):
         self.lr = lr
         self.limit_patient = limit_patient
         self.seed = seed
-        self.num_classes = num_classes
+        self.num_labels = num_labels
 
-        self.model = AutoModelForSequenceClassification.from_pretrained(model_name)
-
-        self.trainer = pl.Trainer(accelerator="gpu",
-                                  devices=1,
-                                  max_epochs=self.max_epochs)
-        self.f1 = F1Score(task="multiclass", average="macro", num_classes=num_classes)
+        self.model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=self.num_labels)
+        self.f1 = F1Score(task="multiclass", average="macro", num_classes=self.num_labels)
 
 
     def configure_optimizers(self):
@@ -109,35 +107,44 @@ class Transformer(pl.LightningModule):
         
         return { "optimizer": optimizer, "scheduler": lr_scheduler }
 
-    def forward(self, **batch):
-
+    def forward(self, batch):
+        
         return self.model(**batch)
 
     def training_step(self, batch):
 
-        output = self(**batch)
+        output = self(batch)
         return output.loss
     
     def validation_step(self, batch, batch_idx):
         
-        output = self(**batch)
+        output = self(batch)
         y_hat = torch.argmax(output.logits, dim=1)
         
         self.log_dict({"val_f1": self.f1(y_hat, batch["labels"])}, prog_bar=True)
-    
-    def on_validation_epoch_end(self, outs):
+
+    """
+    def validation_epoch_end(self, outs):
 
         self.f1.compute()
+    """    
         
     def predict(self, batch):
 
         input_ids, attention_mask = batch["input_ids"], batch["attention_mask"]
         y_hat = self(input_ids, attention_mask)
-        return y_hat.logits.cpu().numpy()
+        return y_hat.logits.cpu()
 
-    def fit(self, train, val):
+class FitHelper:
+
+    def fit(self, model, train, val):
         
         seed_everything(self.seed, workers=True)
-        self.trainer.fit(self,
-                         train_dataloaders=train,
-                         val_dataloaders=val)
+        trainer = pl.Trainer(accelerator="gpu",
+                             devices=1,
+                             max_epochs=self.max_epochs,
+                             callbacks=[ModelCheckpoint(".model", filename="model.ckpt")])
+        
+
+        trainer.fit(model, train_dataloaders=train, val_dataloaders=val)
+        return trainer

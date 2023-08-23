@@ -73,11 +73,11 @@ def get_train_probas(base_path,
         model = Transformer(**model_params)
 
         # Training model.
-        model.fit(train, val)
+        trainer = model.fit(train, val)
 
         # Predicting.
-        test_l = model.trainer.predict(test)
-        eval_l = model.trainer.predict(val)
+        test_l = np.vstack([ l["logits"] for l in trainer.predict(model, test) ])
+        eval_l = np.vstack([ l["logits"] for l in trainer.predict(model, val) ])
 
         # Saving train and validation logits.
         subfold_path = f"{base_path}/sub_fold/{fold}"
