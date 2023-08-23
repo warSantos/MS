@@ -47,7 +47,7 @@ def fast_feature_selection(X_train: np.ndarray,
                            name_error_est: str,
                            file_model: str,
                            do_optimization: bool,
-                           n_feats=50) -> Tuple[int, np.float64, BaseEstimator, BaseEstimator]:
+                           n_feats=100) -> Tuple[int, np.float64, BaseEstimator, BaseEstimator]:
 
     # Training RF and building feature importance ranking.
     if do_optimization:

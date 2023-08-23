@@ -99,14 +99,18 @@ def read_train_test_meta(
     return X_train_meta, X_test_meta
 
 
-def load_clfs_probas(data_source: str, dataset: str, CLFS_SET: list, train_test: str = "train"):
+def load_clfs_probas(data_source: str,
+                     dataset: str,
+                     CLFS_SET: list,
+                     n_folds: int,
+                     train_test: str = "train"):
 
     probs = {}
     for clf, proba_type in CLFS_SET:
         probs[clf] = {}
-        for fold in np.arange(10):
+        for fold in np.arange(n_folds):
             probs[clf][fold] = {}
-            prob_dir = f"{data_source}/{proba_type}/split_10/{dataset}/10_folds/{clf}/{fold}/"
+            prob_dir = f"{data_source}/{proba_type}/split_{n_folds}/{dataset}/{n_folds}_folds/{clf}/{fold}/"
             if train_test == "train":
                 file_path = f"{prob_dir}/train.npz"
                 probs[clf][fold]["train"] = np.load(file_path)[f"X_tain"]
@@ -121,10 +125,10 @@ def load_clfs_probas(data_source: str, dataset: str, CLFS_SET: list, train_test:
     return probs
 
 
-def load_labels(dataset: str, fold: int):
+def load_labels(dataset: str, fold: int, n_folds: int):
 
-    file_path = f"/home/welton/data/clfs_output/split_10/{dataset}/10_folds/lfr/{fold}/train.npz"
+    file_path = f"/home/welton/data/clfs_output/split_{n_folds}/{dataset}/{n_folds}_folds/lfr/{fold}/train.npz"
     y_train = np.load(file_path)["y_train"]
-    file_path = f"/home/welton/data/clfs_output/split_10/{dataset}/10_folds/lfr/{fold}/test.npz"
+    file_path = f"/home/welton/data/clfs_output/split_{n_folds}/{dataset}/{n_folds}_folds/lfr/{fold}/test.npz"
     y_test = np.load(file_path)["y_test"]
     return y_train, y_test
