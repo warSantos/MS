@@ -165,9 +165,8 @@ for dataset_setup, clf, rep in iterations:
             print("\tBuilding Train Probas.")
             X_train_probas = build_train_probas(
                 clf,
+                reps_dir,
                 output_dir,
-                full_X_train,
-                full_y_train,
                 SAVE_PROBAS_CALIB,
                 DO_TRAIN_CALIB,
                 CALIB_METHOD,

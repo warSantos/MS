@@ -7,14 +7,13 @@ from sklearn.metrics import f1_score, accuracy_score
 
 from src.models.optimization import execute_optimization
 from src.models.calibration import probabilities_calibration
-from src.aws.awsio import store_nparrays_in_aws
+from src.aws.awsio import store_nparrays_in_aws, load_reps_from_aws
 from src.utils.utils import report_scoring
 
 def build_train_probas(
         clf: str,
+        base_input_dir: str,
         base_output_dir: str,
-        X: np.ndarray,
-        y: np.ndarray,
         save_probas_calib: bool,
         do_calib: bool,
         calib_method: str,
@@ -24,21 +23,22 @@ def build_train_probas(
         load_model: bool = False
 ) -> dict:
 
-    skf = StratifiedKFold(n_splits=n_splits)
-    skf.get_n_splits(X, y)
-
-    align_idx = np.arange(y.shape[0])
-    idx_list = []
     probas = []
     calib_probas = []
 
-    for fold, (train_index, test_index) in enumerate(skf.split(X, y)):
+    for fold in range(n_splits):
 
-        X_train, X_test = X[train_index], X[test_index]
-        y_train, y_test = y[train_index], y[test_index]
-        align = align_idx[test_index]
-        idx_list.append(align)
+        input_dir = f"{base_input_dir}/sub_folds/{fold}"
+        train_loader = load_reps_from_aws(f"{input_dir}/train.npz", "train")
+        test_loader = load_reps_from_aws(f"{input_dir}/test.npz", "test")
+        
+        try:
+            X_train, X_test = train_loader["X_train"].tolist(), test_loader["X_test"].tolist()
+        except:
+            X_train, X_test = train_loader["X_train"], test_loader["X_test"]
 
+        y_train, y_test = train_loader["y_train"], test_loader["y_test"]
+        
         # Applying oversampling when it is needed.
         for c in set(y_test) - set(y_train):
 
@@ -86,7 +86,7 @@ def build_train_probas(
                      {"X_test": test_probas, "y_test": y_test})
             store_nparrays_in_aws(f"{output_dir}/eval.npz",
                      {"X_eval": eval_probas, "y_eval": y_val})
-            store_nparrays_in_aws(f"{output_dir}/align.npz", {"align": align})
+            #store_nparrays_in_aws(f"{output_dir}/align.npz", {"align": align})
         
         if do_calib:
             print("\tCalibrated.")
@@ -106,12 +106,10 @@ def build_train_probas(
                 axis=1), calib_output_dir, fold)
             calib_probas.append(c_probas)
 
-
-    sorted_idxs = np.hstack(idx_list).argsort()
-    probas = np.vstack(probas)[sorted_idxs]
+    probas = np.vstack(probas)
 
     if do_calib:
-        calib_probas = np.vstack(calib_probas)[sorted_idxs]
+        calib_probas = np.vstack(calib_probas)
         return {"probas": probas,
                 "calib_probas": calib_probas}
 
