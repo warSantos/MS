@@ -11,6 +11,25 @@ from src.dist_mfs.mf.centbased import MFCent
 from src.dist_mfs.mf.knnbased import MFKnn
 from src.dist_mfs.mf.bestk import kvalues
 
+def fix_label(array: np.ndarray) -> np.ndarray:
+
+    if np.min(array) > 0:
+        return array - 1
+    return array
+
+def load_reps(input_dir: str):
+
+    train_loader = np.load(f"{input_dir}/train.npz", allow_pickle=True)
+    test_loader = np.load(f"{input_dir}/test.npz", allow_pickle=True)
+    try:
+        X_train, X_test = train_loader["X_train"].tolist(), test_loader["X_test"].tolist()
+    except:
+        X_train, X_test = train_loader["X_train"], test_loader["X_test"]
+
+    y_train, y_test = train_loader["y_train"], test_loader["y_test"]
+
+    return X_train.toarray(), X_test.toarray(), fix_label(y_train), fix_label(y_test)
+
 
 class DistMFs:
 
@@ -40,34 +59,19 @@ class DistMFs:
         return np.hstack(mfs)
 
     def build_train_mfs(self,
+                        base_dir: str,
                         dataset: str,
-                        fold: int,
-                        X: np.ndarray,
-                        y: np.ndarray,
-                        n_splits: int,
-                        save_cv: bool):
+                        n_splits: int):
 
         # List of train mfs.
         train_mfs = []
-        align = []
 
-        # Make new splits to generate train MFs.
-        splits = stratfied_cv(dataset,
-                              fold,
-                              X,
-                              y,
-                              n_splits,
-                              save_cv)
+        for fold in np.arange(n_splits):
 
-        for fold_idx, split in enumerate(splits.itertuples()):
+            print(f"\t[{dataset.upper()} / FOLD: - {fold+1}/{n_splits} ]")
 
-            print(f"\t[{dataset.upper()} / FOLD: - {fold_idx+1}/{n_splits} ]")
-
-            X_train = X[split.train].copy()
-            X_test = X[split.test]
-
-            y_train = y[split.train].copy()
-            y_test = y[split.test]
+            input_dir = f"{base_dir}/sub_folds/{fold}"
+            X_train, X_test, y_train, y_test = load_reps(input_dir)
 
             # Applying oversampling when it is needed.
             for c in set(y_test) - set(y_train):
@@ -82,50 +86,35 @@ class DistMFs:
                                      y_train)
 
             train_mfs.append(new_mfs)
-            align.append(split.align_test)
-
-        align = np.hstack(align)
-        sort = align.argsort()
-        return np.vstack(train_mfs)[sort]
+        return np.vstack(train_mfs)
 
     def build_features(self,
-                       labels_dir: str,
-                       output_dir: str,
+                       reps_dir: str,
+                       input_rep: str,
+                       output_rep: str,
                        dataset: str,
                        folds: list,
                        n_folds: int,
-                       n_sub_folds: int
-                       ) -> None:
+                       n_sub_folds: int) -> None:
 
-        # For the first cross-val level.
         for fold in folds:
             print(f"[{dataset.upper()} / FOLD: - {fold+1}/{n_folds} ]")
-            X_train, X_test = load_bert_reps(dataset, fold)
-            y_train, y_test = load_y(labels_dir, dataset, fold)
-
             
-            train_mfs = self.build_train_mfs(
-                dataset,
-                fold,
-                X_train,
-                y_train,
-                n_sub_folds,
-                True)
-            
+            # Loading represantations.
+            input_dir = f"{reps_dir}/{dataset}/{n_folds}_folds/{input_rep}/{fold}"
+            X_train, X_test, y_train, y_test = load_reps(input_dir)
 
+            train_mfs = self.build_train_mfs(input_dir,
+                                             dataset,
+                                             n_sub_folds)
+            
             # Generating test meta-features.
-            
             test_mfs = self.transform(dataset,
                                       X_train,
                                       X_test,
                                       y_train)
-
             
-            #train_mfs = np.zeros(X_train.shape)
-            #test_mfs = np.zeros(X_test.shape)
-            #train_mfs = replace_nan_inf(train_mfs)
-            #test_mfs = replace_nan_inf(test_mfs)
-
+            output_dir = f"{reps_dir}/{dataset}/{n_folds}_folds/{output_rep}/{fold}"
             save_mfs(output_dir,
                 dataset,
                 "bert_dists",
@@ -136,16 +125,16 @@ class DistMFs:
                 y_test)
 
     def build(self,
-              labels_dir: str,
-              output_dir: str,
+              reps_dir: str,
+              input_rep: str,
+              output_rep: str,
               datasets: list,
-              folds: list,
-              n_folds: int,
               n_sub_folds: int) -> None:
 
-        for dataset in datasets:
-            self.build_features(labels_dir,
-                                output_dir,
+        for dataset, folds, n_folds in datasets:
+            self.build_features(reps_dir,
+                                input_rep,
+                                output_rep,
                                 dataset,
                                 folds,
                                 n_folds,

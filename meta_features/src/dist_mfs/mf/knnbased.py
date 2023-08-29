@@ -47,7 +47,7 @@ class MFKnn(object):
 			ind=[]
 			ind.append(0)
 			
-			auxf=csr_matrix((data, (ind,ind)),     shape=(1,self.X_train.shape[1]),dtype=np.float64) #zero a linha
+			auxf=csr_matrix((data, (ind,ind)), shape=(1,self.X_train.shape[1]),dtype=np.float64) #zero a linha
 			if X_tmp.shape[0]<self.k+1:
 				newxtmp=[]
 				for iww in list(range(X_tmp.shape[0])):

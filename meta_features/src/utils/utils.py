@@ -221,13 +221,3 @@ def load_bert_reps(dataset: str, fold: int) -> Tuple[np.ndarray, np.ndarray]:
     X_train = np.vstack([X_train, X_val])[sort]
 
     return X_train, X_test
-
-
-"""
-from src.utils.utils import stratfied_cv
-import numpy as np
-X = np.random.randint(0,2, size=(100,5))
-y = np.random.randint(0,4, 100)
-st = stratfied_cv(X,y)
-
-"""
