@@ -11,6 +11,11 @@ from src.dist_mfs.mf.centbased import MFCent
 from src.dist_mfs.mf.knnbased import MFKnn
 from src.dist_mfs.mf.bestk import kvalues
 
+from sys import path
+path.append("../classifiers/src/aws/")
+
+from awsio import load_reps_from_aws, store_nparrays_in_aws, aws_stop_instance
+
 def fix_label(array: np.ndarray) -> np.ndarray:
 
     if np.min(array) > 0:
@@ -19,8 +24,11 @@ def fix_label(array: np.ndarray) -> np.ndarray:
 
 def load_reps(input_dir: str):
 
-    train_loader = np.load(f"{input_dir}/train.npz", allow_pickle=True)
-    test_loader = np.load(f"{input_dir}/test.npz", allow_pickle=True)
+    #train_loader = np.load(f"{input_dir}/train.npz", allow_pickle=True)
+    #test_loader = np.load(f"{input_dir}/test.npz", allow_pickle=True)
+    train_loader = load_reps_from_aws(f"{input_dir}/train.npz", "train")
+    test_loader = load_reps_from_aws(f"{input_dir}/test.npz", "test")
+
     try:
         X_train, X_test = train_loader["X_train"].tolist(), test_loader["X_test"].tolist()
     except:
@@ -28,7 +36,7 @@ def load_reps(input_dir: str):
 
     y_train, y_test = train_loader["y_train"], test_loader["y_test"]
 
-    return X_train.toarray(), X_test.toarray(), fix_label(y_train), fix_label(y_test)
+    return X_train[:2000], X_test[:2000], fix_label(y_train)[:2000], fix_label(y_test)[:2000]
 
 
 class DistMFs:
@@ -104,6 +112,7 @@ class DistMFs:
             input_dir = f"{reps_dir}/{dataset}/{n_folds}_folds/{input_rep}/{fold}"
             X_train, X_test, y_train, y_test = load_reps(input_dir)
 
+            print(X_train.shape, X_test.shape, y_train.shape, y_test.shape)
             train_mfs = self.build_train_mfs(input_dir,
                                              dataset,
                                              n_sub_folds)
@@ -115,6 +124,7 @@ class DistMFs:
                                       y_train)
             
             output_dir = f"{reps_dir}/{dataset}/{n_folds}_folds/{output_rep}/{fold}"
+            """
             save_mfs(output_dir,
                 dataset,
                 "bert_dists",
@@ -123,6 +133,14 @@ class DistMFs:
                 test_mfs,
                 y_train,
                 y_test)
+            """
+
+            store_nparrays_in_aws(f"{output_dir}/train.npz", 
+                                  {"X_train": X_train, "y_train": y_train})
+            store_nparrays_in_aws(f"{output_dir}/test.npz", 
+                                  {"X_test": X_test, "y_test": y_test})
+
+
 
     def build(self,
               reps_dir: str,
