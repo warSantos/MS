@@ -20,7 +20,8 @@ def build_train_probas(
         n_splits: int = 4,
         n_jobs: int = 5,
         opt_n_jobs: int = 1,
-        load_model: bool = False
+        load_model: bool = False,
+        do_optimization: bool = True
 ) -> dict:
 
     probas = []
@@ -66,7 +67,8 @@ def build_train_probas(
             y_train=y_train,
             opt_n_jobs=opt_n_jobs,
             clf_n_jobs=n_jobs,
-            load_model=load_model)
+            load_model=load_model,
+            do_optimization=do_optimization)
 
         test_probas = estimator.predict_proba(X_test)
         probas.append(test_probas)

@@ -51,6 +51,7 @@ DO_TRAIN = settings["DO_TRAIN"]
 DO_TEST_CALIB = settings["DO_TEST_CALIB"]
 DO_TRAIN_CALIB = settings["DO_TRAIN_CALIB"]
 LOAD_MODEL = settings["LOAD_MODEL"]
+DO_OPT = settings["DO_OPT"]
 CALIB_METHOD = settings["CALIB_METHOD"]
 CLFS_SETUP = settings["CLFS_SETUP"]
 AWS_BUCKET = settings["AWS_BUCKET"]
@@ -127,7 +128,8 @@ for dataset_setup, clf, rep in iterations:
                 y_train=y_train,
                 opt_n_jobs=OPT_N_JOBS,
                 clf_n_jobs=N_JOBS,
-                load_model=LOAD_MODEL)
+                load_model=LOAD_MODEL,
+                do_optimization=DO_OPT)
 
             probas = estimator.predict_proba(X_test)
             y_pred = probas.argmax(axis=1)
@@ -173,7 +175,8 @@ for dataset_setup, clf, rep in iterations:
                 n_splits=NESTED_FOLDS,
                 n_jobs=N_JOBS,
                 opt_n_jobs=OPT_N_JOBS,
-                load_model=LOAD_MODEL)
+                load_model=LOAD_MODEL,
+                do_optimization=DO_OPT)
             
             #np.savez(train_probas_path,
             #        X_train=X_train_probas["probas"], y_train=full_y_train)

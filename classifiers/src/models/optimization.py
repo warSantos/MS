@@ -55,7 +55,8 @@ def execute_optimization(
         opt_n_jobs: int = 1,
         clf_n_jobs: int = -1,
         seed: int = 42,
-        load_model: bool = False
+        load_model: bool = False,
+        do_optimization: bool = True
 ) -> BaseEstimator:
     
     params_path = f"{output_dir}/hyper_params.json"
@@ -72,30 +73,34 @@ def execute_optimization(
     else:
 
         classifier, hyperparameters = get_classifier(classifier_name, n_jobs=clf_n_jobs)
-        pipeline = Pipeline([
-            ("scaler", StandardScaler(with_mean=False)),
-            ("classifier", classifier)
-        ])
-        hyperparameters = {f"classifier__{k}": v for k,
-                        v in hyperparameters.items()}
+        if do_optimization:
+            pipeline = Pipeline([
+                ("scaler", StandardScaler(with_mean=False)),
+                ("classifier", classifier)
+            ])
+            hyperparameters = {f"classifier__{k}": v for k,
+                            v in hyperparameters.items()}
 
-        optuna_search = OptunaSearchCV(
-            pipeline,
-            hyperparameters,
-            cv=StratifiedKFold(opt_cv, shuffle=True, random_state=seed),
-            error_score="raise",
-            n_trials=opt_n_iter,
-            random_state=seed,
-            scoring=opt_scoring,
-            n_jobs=opt_n_jobs,
-            refit=True
-        )
-        print("\tOptimizing model...")
-        optuna_search.fit(X_train, y_train)
-        save_params(optuna_search, params_path)
-        classifier = run_model(classifier_name, 
-                               params_path, 
-                               X_train, 
-                               y_train, 
-                               clf_n_jobs)
+            optuna_search = OptunaSearchCV(
+                pipeline,
+                hyperparameters,
+                cv=StratifiedKFold(opt_cv, shuffle=True, random_state=seed),
+                error_score="raise",
+                n_trials=opt_n_iter,
+                random_state=seed,
+                scoring=opt_scoring,
+                n_jobs=opt_n_jobs,
+                refit=True
+            )
+            print("\tOptimizing model...")
+            optuna_search.fit(X_train, y_train)
+            save_params(optuna_search, params_path)
+            classifier = run_model(classifier_name, 
+                                params_path, 
+                                X_train, 
+                                y_train, 
+                                clf_n_jobs)
+        else:
+            print("Training Model...")
+            classifier.fit(X_train, y_train)
         return classifier
