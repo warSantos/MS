@@ -99,9 +99,11 @@ for dataset_setup, clf, rep in iterations:
         full_y_train = fix_labels(train_load["y_train"])
         y_test = fix_labels(test_load["y_test"])
 
+        """
         if X_test.shape[1] < 2000:
             X_test = X_test.toarray()
             full_X_train = full_X_train.toarray()
+        """
             
         if DO_TEST_CALIB:
             X_train, X_val, y_train, y_val = train_test_split(full_X_train,
