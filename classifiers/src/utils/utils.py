@@ -25,3 +25,9 @@ def report_scoring(y_test: np.ndarray,
 
     store_json_in_aws(f"{output_dir}/scoring.json",
                       scoring)
+
+
+def replace_nan(array: np.ndarray):
+
+    m = np.nanmean(array)
+    return np.nan_to_num(array, nan=m)

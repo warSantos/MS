@@ -19,7 +19,7 @@ from src.aws.awsio import (load_reps_from_aws,
                            aws_path_exists,
                            aws_stop_instance)
 
-from src.utils.utils import report_scoring
+from src.utils.utils import report_scoring, replace_nan
 
 # Warning Control.
 import warnings
@@ -89,11 +89,11 @@ for dataset_setup, clf, rep in iterations:
         test_load = load_reps_from_aws(f"{reps_dir}/test.npz", "test")
 
         if dataset == "mini_20ng":
-            full_X_train = train_load["X_train"]
-            X_test = test_load["X_test"]
+            full_X_train = replace_nan(train_load["X_train"])
+            X_test = replace_nan(test_load["X_test"])
         else:
-            full_X_train = train_load["X_train"].tolist()
-            X_test = test_load["X_test"].tolist()
+            full_X_train = replace_nan(train_load["X_train"].tolist())
+            X_test = replace_nan(test_load["X_test"].tolist())
         
 
         full_y_train = fix_labels(train_load["y_train"])
@@ -104,7 +104,7 @@ for dataset_setup, clf, rep in iterations:
             X_test = X_test.toarray()
             full_X_train = full_X_train.toarray()
         """
-            
+                    
         if DO_TEST_CALIB:
             X_train, X_val, y_train, y_val = train_test_split(full_X_train,
                                                             full_y_train,
