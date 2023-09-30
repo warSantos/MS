@@ -27,7 +27,9 @@ def report_scoring(y_test: np.ndarray,
                       scoring)
 
 
-def replace_nan(array: np.ndarray):
+def replace_nan(array: np.ndarray, rep: str):
 
+    if rep == 'tr':
+        return array
     m = np.nanmean(array)
     return np.nan_to_num(array, nan=m)
