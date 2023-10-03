@@ -164,6 +164,7 @@ for dataset_setup, clf, rep in iterations:
                 SAVE_PROBAS_CALIB,
                 DO_TRAIN_CALIB,
                 CALIB_METHOD,
+                rep,
                 n_splits=NESTED_FOLDS,
                 n_jobs=N_JOBS,
                 opt_n_jobs=OPT_N_JOBS,

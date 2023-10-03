@@ -8,7 +8,7 @@ from sklearn.metrics import f1_score, accuracy_score
 from src.models.optimization import execute_optimization
 from src.models.calibration import probabilities_calibration
 from src.aws.awsio import store_nparrays_in_aws, load_reps_from_aws
-from src.utils.utils import report_scoring
+from src.utils.utils import report_scoring, replace_nan
 
 def build_train_probas(
         clf: str,
@@ -17,6 +17,7 @@ def build_train_probas(
         save_probas_calib: bool,
         do_calib: bool,
         calib_method: str,
+        rep: str,
         n_splits: int = 4,
         n_jobs: int = 5,
         opt_n_jobs: int = 1,
@@ -34,9 +35,9 @@ def build_train_probas(
         test_loader = load_reps_from_aws(f"{input_dir}/test.npz", "test")
         
         try:
-            X_train, X_test = train_loader["X_train"].tolist(), test_loader["X_test"].tolist()
+            X_train, X_test = replace_nan(train_loader["X_train"].tolist(), rep), replace_nan(test_loader["X_test"].tolist(), rep)
         except:
-            X_train, X_test = train_loader["X_train"], test_loader["X_test"]
+            X_train, X_test = replace_nan(train_loader["X_train"], rep), replace_nan(test_loader["X_test"], rep)
 
         y_train, y_test = train_loader["y_train"], test_loader["y_test"]
         
