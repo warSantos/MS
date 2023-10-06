@@ -103,9 +103,9 @@ for dataset_setup, clf, rep in iterations:
         os.makedirs(output_dir, exist_ok=True)
 
         # If test probas weren't computed yet.
-        #X_test_path = f"{output_dir}/test"
+        
         X_test_path = f"{output_dir}/test.npz"
-        #if DO_TEST and not os.path.exists(f"{X_test_path}.npz"):
+        
         if DO_TEST and not aws_path_exists(X_test_path):
 
             estimator = execute_optimization(
@@ -120,7 +120,7 @@ for dataset_setup, clf, rep in iterations:
 
             probas = estimator.predict_proba(X_test)
             y_pred = probas.argmax(axis=1)
-            #np.savez(X_test_path, X_test=probas)
+            
             store_nparrays_in_aws(X_test_path,
                                   {"X_test": probas})
             print("Normal.")
@@ -128,7 +128,7 @@ for dataset_setup, clf, rep in iterations:
 
             if SAVE_PROBAS_CALIB:
                 probas_val = estimator.predict_proba(X_test)
-                #np.savez(X_test_path.replace('test', 'eval'), X_eval=probas_val)
+                
                 store_nparrays_in_aws(X_test_path.replace('test', 'eval'),
                                       {"X_eval": probas_val})
 
@@ -138,18 +138,16 @@ for dataset_setup, clf, rep in iterations:
                 calib_est = probabilities_calibration(
                     estimator, X_val, y_val, CALIB_METHOD)
                 c_probas = calib_est.predict_proba(X_test)
-                #np.savez(f"{calib_output_dir}/test",
-                #        X_test=c_probas, y_test=y_test)
+                
                 store_nparrays_in_aws(f"{calib_output_dir}/test.npz",
                                       {"X_test":c_probas, "y_test": y_test})
                 
                 print("Calibrated.")
                 report_scoring(y_test, c_probas.argmax(axis=1), calib_output_dir)
 
-        #train_probas_path = f"{output_dir}/train"
+        
         train_probas_path = f"{output_dir}/train.npz"
-        #if DO_TRAIN and not os.path.exists(f"{train_probas_path}.npz"):
-        if DO_TRAIN and not aws_path_exists(train_probas_path):
+        if DO_TRAIN:# and not aws_path_exists(train_probas_path):
 
             print("\tBuilding Train Probas.")
             X_train_probas = build_train_probas(
