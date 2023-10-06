@@ -1,12 +1,11 @@
 import os
 import json
 import numpy as np
-from src.models.models import get_classifier
 from sklearn.model_selection import StratifiedKFold, train_test_split
-from sklearn.metrics import f1_score, accuracy_score
 
 from src.models.optimization import execute_optimization
 from src.models.calibration import probabilities_calibration
+from src.models.models import fix_labels
 from src.aws.awsio import store_nparrays_in_aws, load_reps_from_aws
 from src.utils.utils import report_scoring, replace_nan
 
@@ -38,12 +37,13 @@ def build_train_probas(
             X_train, X_test = replace_nan(train_loader["X_train"].tolist(), rep), replace_nan(test_loader["X_test"].tolist(), rep)
         except:
             X_train, X_test = replace_nan(train_loader["X_train"], rep), replace_nan(test_loader["X_test"], rep)
-
-        y_train, y_test = train_loader["y_train"], test_loader["y_test"]
         
+
+        y_train, y_test = fix_labels(train_loader["y_train"]), fix_labels(test_loader["y_test"])
+
         # Applying oversampling when it is needed.
         for c in set(y_test) - set(y_train):
-
+            
             sintetic = np.zeros(X_train.shape[1])
             X_train = np.vstack([X_train, sintetic])
             y_train = np.hstack([y_train, [c]])
@@ -54,10 +54,9 @@ def build_train_probas(
                                                               random_state=42,
                                                               stratify=y_train,
                                                               test_size=0.10)
-        else:
-            X_train, y_train = X_train, y_train
 
         output_dir = f"{base_output_dir}/sub_fold/{fold}"
+        
         os.makedirs(output_dir, exist_ok=True)
 
         # Hyper tuning
@@ -75,21 +74,16 @@ def build_train_probas(
         probas.append(test_probas)
         
         print("\tNormal.")
-        
+    
         report_scoring(y_test, test_probas.argmax(axis=1), output_dir, fold)
         
         if save_probas_calib:
             eval_probas = estimator.predict_proba(X_val)
-            #np.savez(f"{output_dir}/test.npz",
-            #         X_test=test_probas, y_test=y_test)
-            #np.savez(f"{output_dir}/eval.npz",
-            #         X_eval=eval_probas, y_eval=y_val)
-            #np.savez(f"{output_dir}/align.npz", align=align)
+            
             store_nparrays_in_aws(f"{output_dir}/test.npz",
                      {"X_test": test_probas, "y_test": y_test})
             store_nparrays_in_aws(f"{output_dir}/eval.npz",
                      {"X_eval": eval_probas, "y_eval": y_val})
-            #store_nparrays_in_aws(f"{output_dir}/align.npz", {"align": align})
         
         if do_calib:
             print("\tCalibrated.")
@@ -100,8 +94,6 @@ def build_train_probas(
                 estimator, X_val, y_val, calib_method)
             c_probas = calib_est.predict_proba(X_test)
             
-            #np.savez(f"{calib_output_dir}/test",
-            #         X_test=c_probas, y_test=y_test)
             store_nparrays_in_aws(f"{calib_output_dir}/test.npz",
                      {"X_test": c_probas, "y_test": y_test})
             

@@ -72,17 +72,12 @@ for dataset_setup, clf, rep in iterations:
     start, end = fold_list
     for fold in range(start, end):
 
+        print(f"{dataset.upper()} - [{clf.upper()} / {rep.upper()}] - FOLD: {fold}")
+        
         sp_setting = f"split_{n_folds}{WITH_VAL}"
 
         N_JOBS = CLFS_SETUP[clf]["n_jobs"]
         OPT_N_JOBS = CLFS_SETUP[clf]["opt_n_jobs"]
-
-        print(f"{dataset.upper()} - [{clf.upper()} / {rep.upper()}] - FOLD: {fold}")
-
-        # Loading representations.
-        #reps_dir = f"{DATA_SOURCE}/representations/{dataset}/{n_folds}_folds/{rep}/{fold}"
-        #train_load = np.load(f"{reps_dir}/train.npz", allow_pickle=True)
-        #test_load = np.load(f"{reps_dir}/test.npz", allow_pickle=True)
 
         reps_dir = f"representations/{dataset}/{n_folds}_folds/{rep}/{fold}"
         train_load = load_reps_from_aws(f"{reps_dir}/train.npz", "train")
@@ -171,15 +166,12 @@ for dataset_setup, clf, rep in iterations:
                 load_model=LOAD_MODEL,
                 do_optimization=DO_OPT)
             
-            #np.savez(train_probas_path,
-            #        X_train=X_train_probas["probas"], y_train=full_y_train)
             store_nparrays_in_aws(train_probas_path,
                                   {"X_train": X_train_probas["probas"], "y_train": full_y_train})
 
             if X_train_probas["calib_probas"] is not None:
                 calib_output_dir = f"{DATA_SOURCE}/{CALIB_METHOD}/{sp_setting}/{dataset}/{n_folds}_folds/{ALIAS[f'{clf}/{rep}']}/{fold}"
-                #np.savez(f"{calib_output_dir}/train",
-                #        X_train=X_train_probas["calib_probas"], y_train=full_y_train)
+            
                 store_nparrays_in_aws(f"{calib_output_dir}/train.npz",
                                   {"X_train": X_train_probas["calib_probas"], "y_train": full_y_train})
                 

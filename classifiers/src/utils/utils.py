@@ -19,10 +19,6 @@ def report_scoring(y_test: np.ndarray,
     else:
         print(f"\t\tFOLD {fold} - Macro: {scoring['macro']}")  # , end='')
 
-
-    #with open(f"{output_dir}/scoring.json", "w") as fd:
-    #    json.dump(scoring, fd)
-
     store_json_in_aws(f"{output_dir}/scoring.json",
                       scoring)
 
