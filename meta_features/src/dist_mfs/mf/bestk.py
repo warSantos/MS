@@ -39,12 +39,18 @@ def findBestK(X_train, y_train):
 
     return gs.best_params_['n_neighbors']
 
+"""
+agnews, imdb and sogou values aren't optmized. Finger Rule played a role.
+"""
 
 kvalues = {
     'webkb': 20,
     '20ng': 10,
     'reut': 10,
     'acm': 20,
+    'agnews': 15,
+    'sogou': 15,
+    'imdb_reviews': 15,
     'mr': 90,
     'sst1': 5,
     'sst2': 90,

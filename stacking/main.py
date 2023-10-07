@@ -2,8 +2,7 @@
 import os
 import json
 import warnings
-import itertools
-import traceback
+from itertools import product
 
 # 3rd party libraries
 import pandas as pd
@@ -15,105 +14,125 @@ from sklearn.metrics import f1_score
 from src.optimization import execute_optimization
 from src.loader.loader import read_meta_data
 from src.files import (
-    read_train_test_meta,
     load_y,
-    read_train_test_meta_oracle
+    read_train_test_meta_oracle,
+    read_cost_error_estimation
 )
-from src.constants import IDS_MODELS
-
-# Loading basic settings of the envirioment.
-try:
-    fd = open("data/settings.json", 'r')
-    settings = json.load(fd)
-except:
-    traceback.print_exc()
-    print("Was not possible to read basic enviorioment settings.")
-    exit(1)
-
-DATA_SOURCE = settings["DATA_SOURCE"]
 
 # Lib configs
 set_verbosity(WARNING)
 warnings.simplefilter("ignore")
 os.environ["PYTHONWARNINGS"] = "ignore"  # Also affect sub-processes
 
-# Directories and files
-DIR_OUTPUT = f"{DATA_SOURCE}/stacking/stacking_output"
-
-# Execution configs
-MODELS = list(IDS_MODELS.values())  # All 18 models
-
 # Loading basic settings of the envirioment.
 try:
-    fd = open("data/execution.json", 'r')
-    execution = json.load(fd)
+    fd = open("data/new_settings.json", 'r')
+    settings = json.load(fd)
 except:
-    traceback.print_exc()
-    print("Was not possible to read executions settings.")
+    print("Was not possible to read the experiments's settings.")
     exit(1)
 
-DATASETS = execution["DATASETS"]
-N_FOLDS = execution["N_FOLDS"]
-META_LAYERS = execution["META_LAYERS"]
-META_FEATURES = execution["META_FEATURES"]
-N_JOBS = execution["N_JOBS"]
-SEED = execution["SEED"]
+# Directories and files
+DATA_SOURCE = settings["DATA_SOURCE"]
+DIR_OUTPUT = f"{DATA_SOURCE}/stacking/stacking_output"
 
-SPLIT_SETTINGS = execution["SPLIT_SETTINGS"]
-LOAD_MODEL = execution["LOAD_MODEL"]
-CONFIDENCE_STEPS = execution["CONFIDENCE_STEPS"]
+# Experiments's parameters.
+DATASETS = settings["DATASETS"]
+N_JOBS = settings["N_JOBS"]
+SEED = settings["SEED"]
+SPLIT_SETTINGS = settings["SPLIT_SETTINGS"]
+LOAD_MODEL = settings["LOAD_MODEL"]
+meta_layer = settings["META_LAYERS"]
 
-DIR_META_INPUT = f"{DATA_SOURCE}/clfs_output/{SPLIT_SETTINGS}"
+for experiment, dataset_setup in product(settings["EXPERIMENTS"], DATASETS):
+    
+    dataset, n_folds = dataset_setup
+    C_SETS = settings["CLFS_SETS"][settings["EXPERIMENT_OPTIONS"][experiment]["CLFS_SETS"]]
+    for clf_set, fold in product(C_SETS, np.arange(n_folds)):
 
-if __name__ == "__main__":
-    iterations = itertools.product(
-        META_FEATURES, META_LAYERS, DATASETS, CONFIDENCE_STEPS, range(N_FOLDS))
-    for (meta_feature, meta_layer, dataset, confidence, fold_id) in iterations:
         print(
-            f"[{meta_layer.upper()} / {meta_feature.upper()}] - {dataset.upper():10s} - fold_{fold_id}")
+            f"[{meta_layer.upper()} / {experiment.upper()}] - {dataset.upper():10s} - fold_{fold}")
 
         # Reading classification labels.
-        y_train, y_test = load_y(DATA_SOURCE, dataset, fold_id, SPLIT_SETTINGS)
+        y_train, y_test = load_y(DATA_SOURCE, dataset, fold, SPLIT_SETTINGS)
 
         # Setting output dir.
-        dir_dest = f"{DIR_OUTPUT}/{dataset}/{N_FOLDS}_folds/{meta_layer}/{meta_feature}"
+        dir_dest = f"{DIR_OUTPUT}/{dataset}/{n_folds}_folds/{meta_layer}/{experiment}"
 
-        # Reading meta-layer input
-        if meta_feature == "proba":
 
-            X_train, X_test = read_train_test_meta(
-                DIR_META_INPUT, dataset, N_FOLDS, fold_id, ["bert", "xlnet", "ktmk"])
 
-        elif meta_feature in ["calibrated", "normal_probas"]:
+        # TODO: Falta arrumar o código de leitura do upperbound e error_detection.
+
+
+        if experiment in ["calibrated", "normal_probas"]:
+        
             X_train, X_test = read_meta_data(
                 DATA_SOURCE,
                 dataset,
-                execution["CLF_SET"],
-                N_FOLDS,
-                fold_id
+                settings[experiment],
+                n_folds,
+                fold
             )
+            sufix = '/'.join(sorted([ f"{tup[0]}_{tup[1]}" for tup in settings[experiment] ]))
+            dir_dest = f"{dir_dest}/{sufix}"
 
-        elif meta_feature.find("local_") > -1 or meta_feature == "upper_bound":
-            oracle_set = execution["ORACLE_CLF_SET"]
-            zero_train = execution["ORACLE_ZERO_TRAIN"]
+        elif experiment == "error_detection":
+            
+            oracle_set = settings[experiment][clf_set]
+            zero_train = settings["ORACLE_ZERO_TRAIN"]
+            sufix = '/'.join(sorted([ f"{tup[0]}_{tup[1]}" for tup in oracle_set ]))
             X_train, X_test = read_train_test_meta_oracle(DATA_SOURCE,
-                                                          dataset,
-                                                          N_FOLDS,
-                                                          fold_id,
-                                                          oracle_set,
-                                                          meta_feature,
-                                                          confidence,
-                                                          zero_train)
+                                                        dataset,
+                                                        N_FOLDS,
+                                                        fold,
+                                                        oracle_set,
+                                                        experiment,
+                                                        sufix,
+                                                        confidence,
+                                                        zero_train)
+
+            sufix = f"{sufix}/{oracle_set[0][2]}"
+            dir_dest = f"{dir_dest}/{sufix}"
+        
+        elif experiment == "upper_bound":
+
+            sufix = '/'.join(sorted([ f"{tup[0]}_{tup[1]}" for tup in oracle_set ]))
+            X_train, X_test = read_train_test_meta_oracle(DATA_SOURCE,
+                                                        dataset,
+                                                        N_FOLDS,
+                                                        fold,
+                                                        oracle_set,
+                                                        experiment,
+                                                        sufix,
+                                                        confidence,
+                                                        zero_train)
+
+            sufix = f"{sufix}/{oracle_set[0][2]}"
+            dir_dest = f"{dir_dest}/{sufix}"
+
+        elif experiment in ["zero_error_cost", "keep_error_cost"]:
+
+            oracle_set = settings["error_detection"]
+            zero_train = settings["ORACLE_ZERO_TRAIN"]
+            X_train, X_test = read_cost_error_estimation(DATA_SOURCE,
+                                                        dataset,
+                                                        N_FOLDS,
+                                                        fold,
+                                                        oracle_set,
+                                                        (experiment, "error_detection"),
+                                                        confidence,
+                                                        zero_train)
 
             sufix = '/'.join(sorted([ f"{tup[0]}_{tup[1]}" for tup in oracle_set ]))
             sufix = f"zero_train_{zero_train}/{confidence}/{sufix}/{oracle_set[0][2]}"
             dir_dest = f"{dir_dest}/{sufix}"
+        
         else:
-            raise ValueError(f"Invalid value ({meta_feature}) for type_input.")
+            raise ValueError(f"Invalid value ({experiment}) for type_input.")
 
         print(f"[OUTPUT: {dir_dest}]")
 
-        dir_dest = f"{dir_dest}/fold_{fold_id}"
+        dir_dest = f"{dir_dest}/fold_{fold}"
         # Optimization/Training.
 
         file_model = f"{dir_dest}/model.joblib"
@@ -124,7 +143,8 @@ if __name__ == "__main__":
             X_train,
             y_train,
             seed=SEED,
-            opt_n_jobs=N_JOBS,
+            clf_n_jobs=1,
+            opt_n_jobs=-1,
             load_model=LOAD_MODEL
         )
 

@@ -43,7 +43,7 @@ def get_clf(clf="xgboost", n_jobs=25):
     elif clf == "rf":
         CLF_RF = RandomForestClassifier(random_state=42, n_jobs=n_jobs)
         HYP_RF = {
-            "n_estimators": IntDistribution(low=100, high=500, step=50),
+            "n_estimators": IntDistribution(low=50, high=500, step=50),
             "max_depth": IntDistribution(low=3, high=14),
             "min_samples_leaf": CategoricalDistribution([1, 2, 4]),
             "min_samples_split": CategoricalDistribution([2, 5, 10]),
