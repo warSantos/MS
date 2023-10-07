@@ -35,9 +35,8 @@ def set_data_splits(X,
 
     return X_train, X_test, X_val, y_train, y_test, y_val
 
-def get_train_probas(base_path,
-                     X,
-                     y,
+def get_train_probas(input_dir,
+                     output_dir,
                      n_splits,
                      model_params,
                      text_params):
@@ -54,7 +53,6 @@ def get_train_probas(base_path,
     # For each fold.
     for fold, (train_index, test_index) in enumerate(sfk.split(X, y)):
 
-        
         # Spliting data.
         X_train, X_test, X_val, y_train, y_test, y_val = set_data_splits(X,
                                                                          y,
@@ -80,7 +78,7 @@ def get_train_probas(base_path,
         eval_l = np.vstack([ l["logits"] for l in trainer.predict(model, val) ])
 
         # Saving train and validation logits.
-        subfold_path = f"{base_path}/sub_fold/{fold}"
+        subfold_path = f"{output_dir}/sub_fold/{fold}"
         os.makedirs(subfold_path, exist_ok=True)
         np.savez(f"{subfold_path}/eval_logits", X_eval=eval_l, y_eval=y_val)
         np.savez(f"{subfold_path}/test_logits", X_test=test_l, y_test=y_test)
@@ -105,6 +103,6 @@ def get_train_probas(base_path,
     # Resorting document's probabilities.
     sorted_idxs = np.hstack(idx_list).argsort()
     probas = probas[sorted_idxs]
-    probas_path = f"{base_path}/train"
+    probas_path = f"{output_dir}/train"
     # Saving document's proabilities.
     np.savez(probas_path, X_train=probas)
