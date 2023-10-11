@@ -1,12 +1,13 @@
 import os
 import numpy as np
-
+import pandas as pd
 from sklearn.metrics import f1_score
-from sklearn.model_selection import StratifiedKFold, train_test_split
+from sklearn.model_selection import train_test_split
 from scipy.special import softmax
 
+from src.nn.data_loader import Loader
 from src.nn.data_loader import get_doc_by_id
-from src.nn.model import Transformer, TextFormater
+from src.nn.model import Transformer, TextFormater, FitHelper
 
 def set_data_splits(X,
                     y,
@@ -35,23 +36,28 @@ def set_data_splits(X,
 
     return X_train, X_test, X_val, y_train, y_test, y_val
 
-def get_train_probas(input_dir,
-                     output_dir,
-                     n_splits,
-                     model_params,
-                     text_params):
+def get_train_probas(data_handler: Loader,
+                     output_dir: str,
+                     parent_fold: int,
+                     n_splits: int,
+                     model_params: dict,
+                     text_params: dict):
 
-    # Spliitng train probabilities.
-    sfk = StratifiedKFold(n_splits=n_splits)
-    sfk.get_n_splits(X, y)
+    # Loading the train set (Train-Test split without val).
+    X, y = data_handler.get_X_y(parent_fold, "train", with_val=False)
     # This list will hold all the folds probabilities.
     probas = []
-    # This list holds all the document's indexes to re sort later.
-    # When fine-tuning is done.
+    # This list holds all the document's indexes to re sort later when fine-tuning is done.
     idx_list = []
     align_idx = np.arange(y.shape[0])
     # For each fold.
-    for fold, (train_index, test_index) in enumerate(sfk.split(X, y)):
+    for fold in np.arange(n_splits):
+        
+        sub_path = f"{data_handler.data_dir}/{data_handler.dataset}/splits/sub_splits/{fold}/split_4.pkl"
+        sub_split = pd.read_pickle(sub_path)
+
+        train_index = sub_split.train_idxs[fold]
+        test_index = sub_split.test_idxs[fold]
 
         # Spliting data.
         X_train, X_test, X_val, y_train, y_test, y_val = set_data_splits(X,
@@ -62,7 +68,7 @@ def get_train_probas(input_dir,
         
         # Enconding text into input ids.
         text_formater = TextFormater(**text_params)
-        train = text_formater.prepare_data(X_train, y_train)
+        train = text_formater.prepare_data(X_train, y_train, shuffle=True)
         test = text_formater.prepare_data(X_test, y_test)
         val = text_formater.prepare_data(X_val, y_val)
 
@@ -71,7 +77,7 @@ def get_train_probas(input_dir,
         model = Transformer(**model_params)
 
         # Training model.
-        trainer = model.fit(train, val)
+        trainer = FitHelper().fit(model, train, val, model.max_epochs, model.seed)
 
         # Predicting.
         test_l = np.vstack([ l["logits"] for l in trainer.predict(model, test) ])

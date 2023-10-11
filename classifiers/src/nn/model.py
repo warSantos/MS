@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import torch
 from torch.optim import AdamW
@@ -21,9 +22,9 @@ class CustomDataset(Dataset):
     def __getitem__(self, idx):
         
         return {
-            "input_ids": torch.tensor(self.x["input_ids"][idx]),
-            "attention_mask": torch.tensor(self.x["attention_mask"][idx]),
-            "token_type_ids": torch.tensor(self.x["token_type_ids"][idx]),
+            "input_ids": self.x["input_ids"][idx].clone().detach(),
+            "attention_mask": self.x["attention_mask"][idx].clone().detach(),
+            "token_type_ids": self.x["token_type_ids"][idx].clone().detach(),
             "labels": torch.tensor(self.y[idx])}
 
     def __len__(self):
@@ -47,7 +48,7 @@ class TextFormater:
         self.seed = seed
         
 
-    def prepare_data(self, X, y):
+    def prepare_data(self, X, y, shuffle=False):
 
         # Applying text encoding.
         tokenizer = AutoTokenizer.from_pretrained(self.model_name)
@@ -62,10 +63,10 @@ class TextFormater:
 
         # Splitting data in batches.
         data_loader = DataLoader(data,
-                                 shuffle=True,
+                                 shuffle=shuffle,
                                  batch_size=self.batch_size,
-                                 worker_init_fn=self.seed,
-                                 pin_memory=True)
+                                 pin_memory=True,
+                                 num_workers=os.cpu_count() - 1)
         return data_loader
     
 
@@ -137,14 +138,16 @@ class Transformer(pl.LightningModule):
 
 class FitHelper:
 
-    def fit(self, model, train, val):
+    def fit(self, model, train, val, max_epochs, seed = 42):
         
-        seed_everything(self.seed, workers=True)
+        seed_everything(seed, workers=True)
         trainer = pl.Trainer(accelerator="gpu",
                              devices=1,
-                             max_epochs=self.max_epochs,
+                             max_epochs=max_epochs,
                              callbacks=[ModelCheckpoint(".model", filename="model.ckpt")])
         
 
         trainer.fit(model, train_dataloaders=train, val_dataloaders=val)
         return trainer
+
+        

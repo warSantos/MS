@@ -14,8 +14,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning import seed_everything
 
 from src.nn.data_loader import Loader
-from src.nn.model import Transformer, TextFormater
-from src.nn.data_loader import get_doc_by_id
+from src.nn.model import Transformer, TextFormater, FitHelper
 from src.nn.do_train import get_train_probas
 
 with open("data/nn_settings.json", 'r') as fd:
@@ -26,6 +25,8 @@ DATA_DIR = settings["DATA_DIR"]
 DATA_SOURCE = settings["DATA_SOURCE"]
 DATASETS = settings["DATASETS"]
 CLFS = settings["CLFS"]
+DO_TEST = settings["DO_TEST"]
+DO_TRAIN = settings["DO_TRAIN"]
 n_sub_folds = settings["N_SUB_FOLDS"]
 
 iters = product(DATASETS, CLFS)
@@ -39,37 +40,36 @@ for (dataset, n_folds), (clf_name, clf_short_name) in iters:
     for fold in np.arange(n_folds):
                 
         model_params = settings["MODEL_PARAMS"][clf_short_name].copy()
+        model_params["num_labels"] = data_handler.num_labels
 
         print(f"[{dataset.upper()} / {model_params['model_name']}] - FOLD: {fold}")
-        base_path = f"{DATA_DIR}/normal_probas/split_{n_folds}/{dataset}/{n_folds}_folds/{clf_short_name}/{fold}"
-        os.makedirs(base_path, exist_ok=True)
-        test_path = f"{base_path}/test"
-        eval_path = f"{base_path}/eval"
-        eval_logits_path = f"{base_path}/eval_logits"
-        test_logits_path = f"{base_path}/test_logits"
+        output_dir = f"{DATA_DIR}/normal_probas/split_{n_folds}/{dataset}/{n_folds}_folds/{clf_short_name}/{fold}"
+        os.makedirs(output_dir, exist_ok=True)
+        test_path = f"{output_dir}/test"
+        eval_path = f"{output_dir}/eval"
+        eval_logits_path = f"{output_dir}/eval_logits"
+        test_logits_path = f"{output_dir}/test_logits"
 
         print(test_path)
         # Se este fold ainda não foi executado.
-        if not os.path.exists(test_path):
+        if DO_TEST and not os.path.exists(test_path):
             print("Builind test probabilities...")
-            
             
             # Preparing data.
             X_train, y_train = data_handler.get_X_y(fold, "train")
             X_test, y_test = data_handler.get_X_y(fold, "test")
             X_val, y_val = data_handler.get_X_y(fold, "val")
             text_formater = TextFormater(**text_params)
-            train = text_formater.prepare_data(X_train, y_train)
+            train = text_formater.prepare_data(X_train, y_train, shuffle=True)
             test = text_formater.prepare_data(X_test, y_test)
             val = text_formater.prepare_data(X_val, y_val)
 
             # Setting model's parameters.
             model_params["len_data_loader"] = len(train)
-            model_params["num_labels"] = data_handler.num_labels
             model = Transformer(**model_params)
 
             # Traning model.
-            trainer = model.fit(train, val)
+            trainer = FitHelper().fit(model, train, val, model.max_epochs, model.seed)
             
             # Predicting.
             test_l = np.vstack([ l["logits"] for l in trainer.predict(model, test) ])
@@ -85,9 +85,9 @@ for (dataset, n_folds), (clf_name, clf_short_name) in iters:
             print(f"Macro: {f1_score(y_test, y_pred, average='macro')}")
             print(f"Micro: {f1_score(y_test, y_pred, average='micro')}")
             
-        train_path = f"{base_path}/train"
+        train_path = f"{output_dir}/train"
         # If train probabilities weren't computed yet.
-        if not os.path.exists(train_path):
+        if DO_TRAIN and not os.path.exists(train_path):
             print("Builind train probabilities...")
             # Joining train indexes with validation indexes.
             idxs = data_handler.split_settings.iloc[fold]["train_idxs"]
@@ -96,10 +96,9 @@ for (dataset, n_folds), (clf_name, clf_short_name) in iters:
             # of data split with validantion and without validation (just train and test).
             sort = np.array(idxs).argsort()
             # Computing train probabilities.
-            X = X_train + X_val
-            get_train_probas(base_path,
-                             get_doc_by_id(X, sort),
-                             np.hstack([y_train, y_val])[sort],
+            get_train_probas(data_handler,
+                             output_dir,
+                             fold,
                              n_sub_folds,
                              model_params,
                              text_params)
