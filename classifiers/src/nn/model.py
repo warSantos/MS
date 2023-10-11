@@ -143,8 +143,7 @@ class FitHelper:
         seed_everything(seed, workers=True)
         trainer = pl.Trainer(accelerator="gpu",
                              devices=1,
-                             max_epochs=max_epochs,
-                             callbacks=[ModelCheckpoint(".model", filename="model.ckpt")])
+                             max_epochs=max_epochs)
         
 
         trainer.fit(model, train_dataloaders=train, val_dataloaders=val)

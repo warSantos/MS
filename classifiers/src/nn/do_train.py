@@ -8,6 +8,7 @@ from scipy.special import softmax
 from src.nn.data_loader import Loader
 from src.nn.data_loader import get_doc_by_id
 from src.nn.model import Transformer, TextFormater, FitHelper
+from src.aws.awsio import store_nparrays_in_aws, load_file_from_aws
 
 def set_data_splits(X,
                     y,
@@ -53,8 +54,9 @@ def get_train_probas(data_handler: Loader,
     # For each fold.
     for fold in np.arange(n_splits):
         
-        sub_path = f"{data_handler.data_dir}/{data_handler.dataset}/splits/sub_splits/{fold}/split_4.pkl"
-        sub_split = pd.read_pickle(sub_path)
+        pickle_path = f"{data_handler.data_dir}/{data_handler.dataset}/splits/sub_splits/{fold}/split_4.pkl"
+        data = load_file_from_aws(pickle_path)
+        sub_split = pd.read_pickle(data)
 
         train_index = sub_split.train_idxs[fold]
         test_index = sub_split.test_idxs[fold]
@@ -68,7 +70,7 @@ def get_train_probas(data_handler: Loader,
         
         # Enconding text into input ids.
         text_formater = TextFormater(**text_params)
-        train = text_formater.prepare_data(X_train, y_train, shuffle=True)
+        train = text_formater.prepare_data(X_train[:1000], y_train[:1000], shuffle=True)
         test = text_formater.prepare_data(X_test, y_test)
         val = text_formater.prepare_data(X_val, y_val)
 
@@ -83,14 +85,15 @@ def get_train_probas(data_handler: Loader,
         test_l = np.vstack([ l["logits"] for l in trainer.predict(model, test) ])
         eval_l = np.vstack([ l["logits"] for l in trainer.predict(model, val) ])
 
-        # Saving train and validation logits.
+        # Saving validation and test logits.
         subfold_path = f"{output_dir}/sub_fold/{fold}"
         os.makedirs(subfold_path, exist_ok=True)
-        np.savez(f"{subfold_path}/eval_logits", X_eval=eval_l, y_eval=y_val)
-        np.savez(f"{subfold_path}/test_logits", X_test=test_l, y_test=y_test)
-
+        store_nparrays_in_aws(f"{subfold_path}/eval_logits", {"X_eval": eval_l,
+                                                              "y_eval": y_val})
+        store_nparrays_in_aws(f"{subfold_path}/test_logits", {"X_test": test_l,
+                                                              "y_test": y_test})
         # Saving fold document's indexes.
-        np.savez(f"{subfold_path}/align", align=idx_list[-1])
+        store_nparrays_in_aws(f"{subfold_path}/align", {"align": idx_list[-1]})
 
         # Saving fold's probabilities.
         probas.append(softmax(test_l, axis=1))
@@ -111,4 +114,4 @@ def get_train_probas(data_handler: Loader,
     probas = probas[sorted_idxs]
     probas_path = f"{output_dir}/train"
     # Saving document's proabilities.
-    np.savez(probas_path, X_train=probas)
+    store_nparrays_in_aws(probas_path, {"X_train": probas, "y_train": y})

@@ -10,6 +10,16 @@ def get_s3_client():
     session = boto3.Session(profile_name=os.environ["AWS_PROFILE"])
     return session.client('s3')
 
+def load_file_from_aws(file_path: str):
+    
+    try:
+        aws_file_path = file_path.replace(f"{os.environ['DATA_SOURCE']}/", '')
+        client = get_s3_client()
+        response = client.get_object(Bucket=os.environ["AWS_BUCKET"], Key=aws_file_path)
+        return response["Body"]
+    except Exception as e:
+        print("Error: ", e)
+
 def load_reps_from_aws(file_path: str,
                        train_test: str):
 

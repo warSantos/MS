@@ -16,18 +16,23 @@ from pytorch_lightning import seed_everything
 from src.nn.data_loader import Loader
 from src.nn.model import Transformer, TextFormater, FitHelper
 from src.nn.do_train import get_train_probas
+from src.aws.awsio import (aws_path_exists,
+                           aws_stop_instance,
+                           store_nparrays_in_aws)
 
 with open("data/nn_settings.json", 'r') as fd:
     settings = json.load(fd)
 
 SEED = settings["SEED"]
-DATA_DIR = settings["DATA_DIR"]
 DATA_SOURCE = settings["DATA_SOURCE"]
 DATASETS = settings["DATASETS"]
 CLFS = settings["CLFS"]
 DO_TEST = settings["DO_TEST"]
 DO_TRAIN = settings["DO_TRAIN"]
 n_sub_folds = settings["N_SUB_FOLDS"]
+os.environ["DATA_SOURCE"] = DATA_SOURCE
+os.environ["AWS_BUCKET"] = settings["AWS_BUCKET"]
+os.environ["AWS_PROFILE"] = settings["AWS_PROFILE"]
 
 iters = product(DATASETS, CLFS)
 
@@ -43,7 +48,7 @@ for (dataset, n_folds), (clf_name, clf_short_name) in iters:
         model_params["num_labels"] = data_handler.num_labels
 
         print(f"[{dataset.upper()} / {model_params['model_name']}] - FOLD: {fold}")
-        output_dir = f"{DATA_DIR}/normal_probas/split_{n_folds}/{dataset}/{n_folds}_folds/{clf_short_name}/{fold}"
+        output_dir = f"{DATA_SOURCE}/normal_probas/split_{n_folds}/{dataset}/{n_folds}_folds/{clf_short_name}/{fold}"
         os.makedirs(output_dir, exist_ok=True)
         test_path = f"{output_dir}/test"
         eval_path = f"{output_dir}/eval"
@@ -52,7 +57,7 @@ for (dataset, n_folds), (clf_name, clf_short_name) in iters:
 
         print(test_path)
         # Se este fold ainda não foi executado.
-        if DO_TEST and not os.path.exists(test_path):
+        if DO_TEST and not aws_path_exists(test_path):
             print("Builind test probabilities...")
             
             # Preparing data.
@@ -76,9 +81,12 @@ for (dataset, n_folds), (clf_name, clf_short_name) in iters:
             eval_l = np.vstack([ l["logits"] for l in trainer.predict(model, val) ])
 
             # Saving outputs.
-            np.savez(test_path, X_test=softmax(test_l, axis=1), y_test=y_test)
-            np.savez(eval_logits_path, X_eval=eval_l, y_eval=y_val)
-            np.savez(test_logits_path, X_test=test_l, y_test=y_test)
+            store_nparrays_in_aws(test_path, {"X_test": softmax(test_l, axis=1),
+                                              "y_test": y_test})
+            store_nparrays_in_aws(eval_logits_path, {"X_eval": eval_l,
+                                                     "y_eval": y_val})
+            store_nparrays_in_aws(test_logits_path, {"X_test": test_l,
+                                                     "y_test": y_test})
             
             # Printing model performance.
             y_pred = test_l.argmax(axis=1)
@@ -87,14 +95,8 @@ for (dataset, n_folds), (clf_name, clf_short_name) in iters:
             
         train_path = f"{output_dir}/train"
         # If train probabilities weren't computed yet.
-        if DO_TRAIN and not os.path.exists(train_path):
+        if DO_TRAIN and not aws_path_exists(train_path):
             print("Builind train probabilities...")
-            # Joining train indexes with validation indexes.
-            idxs = data_handler.split_settings.iloc[fold]["train_idxs"]
-            idxs += data_handler.split_settings.iloc[fold]["val_idxs"]
-            # Sorting indexes. It's important to match the train document's probabilities
-            # of data split with validantion and without validation (just train and test).
-            sort = np.array(idxs).argsort()
             # Computing train probabilities.
             get_train_probas(data_handler,
                              output_dir,
@@ -102,3 +104,5 @@ for (dataset, n_folds), (clf_name, clf_short_name) in iters:
                              n_sub_folds,
                              model_params,
                              text_params)
+
+aws_stop_instance()
