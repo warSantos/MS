@@ -47,7 +47,7 @@ class MFKnn(object):
 			ind=[]
 			ind.append(0)
 			
-			auxf=csr_matrix((data, (ind,ind)),     shape=(1,self.X_train.shape[1]),dtype=np.float64) #zero a linha
+			auxf=csr_matrix((data, (ind,ind)), shape=(1,self.X_train.shape[1]),dtype=np.float64) #zero a linha
 			if X_tmp.shape[0]<self.k+1:
 				newxtmp=[]
 				for iww in list(range(X_tmp.shape[0])):
@@ -73,7 +73,9 @@ class MFKnn(object):
 	def transform(self, X):
 
 		#
-		istrain = True if self.csr_matrix_equal2(self.X_train, X) else False
+		#istrain = True if self.csr_matrix_equal2(self.X_train, X) else False
+		istrain = True if np.array_equal(self.X_train, X) else False
+		
 		#print(istrain)
 		n_neighbors = self.k+1 if istrain else self.k
 

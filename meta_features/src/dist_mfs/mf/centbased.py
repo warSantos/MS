@@ -46,7 +46,8 @@ class MFCent(object):
     def transform(self, X):
 
         #
-        istrain = True if self.csr_matrix_equal2(self.X_train, X) else False
+        #istrain = True if self.csr_matrix_equal2(self.X_train, X) else False
+        istrain = True if np.array_equal(self.X_train, X) else False
 
         #
         metafeatures = []
@@ -60,12 +61,23 @@ class MFCent(object):
                         self.centroids_sum[j] - self.X_train[i])/(self.docs_by_class[j]-1)
                 else:
                     c = self.centroids[j]
+                
+                c = c.reshape(c.shape[0], -1)
+                doc_i = doc.reshape(doc.shape[0], -1)
                 #
                 if self.metric == 'l1' or self.metric == 'euclidean' or self.metric == 'l2':
+                    
+                    """
                     metafeatures += [cdist(X[i].toarray(),
                                            c, metric=self.metric)[0][0]]
+                    """
+                    metafeatures += [cdist(doc_i, c, metric=self.metric)[0][0]]
                 if self.metric == 'cosine':
+                    
+                    """
                     metafeatures += [1.0 -
                                      cdist(X[i].toarray(), c, metric=self.metric)[0][0]]
+                    """
+                    metafeatures += [1.0 - cdist(doc_i, c, metric=self.metric)[0][0]]
 
         return np.array(metafeatures).reshape((X.shape[0], self.n_classes))

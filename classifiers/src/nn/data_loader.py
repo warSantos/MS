@@ -1,6 +1,8 @@
 import io
+import os
 import numpy as np
 import pandas as pd
+os.environ['TOKENIZERS_PARALLELISM'] = 'false'
 
 def get_doc_by_id(X, idxs):
 
@@ -14,15 +16,15 @@ class Loader:
     def __init__(self,
                  data_dir: str,
                  dataset: str,
-                 fold: int,
                  n_folds: int) -> None:
 
         self.data_dir = data_dir
         self.dataset = dataset
-        self.fold = fold
         self.n_folds = n_folds
 
-        # Loading spliting settings.
+        # Loading spliting settings with validation set.
+        self.split_settings_with_val = pd.read_pickle(f"{self.data_dir}/{self.dataset}/splits/split_{self.n_folds}_with_val.pkl")
+        # Loading spliting settings without validation set.
         self.split_settings = pd.read_pickle(f"{self.data_dir}/{self.dataset}/splits/split_{self.n_folds}_with_val.pkl")
         
         # Loading raw documents.
@@ -43,15 +45,18 @@ class Loader:
         y[y == -1] = 0
         
         # If the min class valeu is 1, subtract 1 from every label.
-        if np.min(y == 1):
+        if np.min(y) == 1:
             y = y - 1
+        
         self.y = y
-
         self.num_labels = len(np.unique(y))
 
-    def get_X_y(self, fold: int, set_name: str):
+    def get_X_y(self, fold: int, set_name: str, with_val: bool = True):
 
-        sp_set = self.split_settings[self.split_settings.fold_id == fold]
+        if with_val:
+            sp_set = self.split_settings_with_val[self.split_settings_with_val.fold_id == fold]
+        else:
+            sp_set = self.split_settings[self.split_settings.fold_id == fold]
 
         if set_name == "train":
             
