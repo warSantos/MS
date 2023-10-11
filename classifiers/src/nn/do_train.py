@@ -111,4 +111,4 @@ def get_train_probas(data_handler: Loader,
     probas = probas[sorted_idxs]
     probas_path = f"{output_dir}/train"
     # Saving document's proabilities.
-    np.savez(probas_path, X_train=probas)
+    np.savez(probas_path, X_train=probas, y_train=y)

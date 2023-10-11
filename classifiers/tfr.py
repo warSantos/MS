@@ -89,12 +89,6 @@ for (dataset, n_folds), (clf_name, clf_short_name) in iters:
         # If train probabilities weren't computed yet.
         if DO_TRAIN and not os.path.exists(train_path):
             print("Builind train probabilities...")
-            # Joining train indexes with validation indexes.
-            idxs = data_handler.split_settings.iloc[fold]["train_idxs"]
-            idxs += data_handler.split_settings.iloc[fold]["val_idxs"]
-            # Sorting indexes. It's important to match the train document's probabilities
-            # of data split with validantion and without validation (just train and test).
-            sort = np.array(idxs).argsort()
             # Computing train probabilities.
             get_train_probas(data_handler,
                              output_dir,

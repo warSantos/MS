@@ -25,7 +25,7 @@ class Loader:
         # Loading spliting settings with validation set.
         self.split_settings_with_val = pd.read_pickle(f"{self.data_dir}/{self.dataset}/splits/split_{self.n_folds}_with_val.pkl")
         # Loading spliting settings without validation set.
-        self.split_settings = pd.read_pickle(f"{self.data_dir}/{self.dataset}/splits/split_{self.n_folds}_with_val.pkl")
+        self.split_settings = pd.read_pickle(f"{self.data_dir}/{self.dataset}/splits/split_{self.n_folds}.pkl")
         
         # Loading raw documents.
         with io.open(f"{self.data_dir}/{self.dataset}/documents.txt", newline='\n', errors='ignore') as read:
@@ -56,7 +56,7 @@ class Loader:
         if with_val:
             sp_set = self.split_settings_with_val[self.split_settings_with_val.fold_id == fold]
         else:
-            sp_set = self.split_settings[self.split_settings.fold_id == fold]
+            sp_set = self.split_settings[self.split_settings.index == fold]
 
         if set_name == "train":
             
