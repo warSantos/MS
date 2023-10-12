@@ -140,13 +140,17 @@ class FitHelper:
 
     def fit(self, model, train, val, max_epochs, seed = 42):
         
+        checkpoint_callback = ModelCheckpoint(dirpath='checkpoints/',
+                                              filename='{epoch}-{val_loss:.2f}',
+                                              save_top_k=0,
+                                              save_last=False)
+
         seed_everything(seed, workers=True)
         trainer = pl.Trainer(accelerator="gpu",
                              devices=1,
-                             max_epochs=max_epochs)
+                             max_epochs=max_epochs,
+                             callbacks=checkpoint_callback)
         
 
         trainer.fit(model, train_dataloaders=train, val_dataloaders=val)
         return trainer
-
-        

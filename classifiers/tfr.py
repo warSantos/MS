@@ -50,10 +50,9 @@ for (dataset, n_folds), (clf_name, clf_short_name) in iters:
         print(f"[{dataset.upper()} / {model_params['model_name']}] - FOLD: {fold}")
         output_dir = f"{DATA_SOURCE}/normal_probas/split_{n_folds}/{dataset}/{n_folds}_folds/{clf_short_name}/{fold}"
         os.makedirs(output_dir, exist_ok=True)
-        test_path = f"{output_dir}/test"
-        eval_path = f"{output_dir}/eval"
-        eval_logits_path = f"{output_dir}/eval_logits"
-        test_logits_path = f"{output_dir}/test_logits"
+        test_path = f"{output_dir}/test.npz"
+        eval_logits_path = f"{output_dir}/eval_logits.npz"
+        test_logits_path = f"{output_dir}/test_logits.npz"
 
         print(test_path)
         # Se este fold ainda não foi executado.

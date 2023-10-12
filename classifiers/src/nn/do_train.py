@@ -70,7 +70,7 @@ def get_train_probas(data_handler: Loader,
         
         # Enconding text into input ids.
         text_formater = TextFormater(**text_params)
-        train = text_formater.prepare_data(X_train[:1000], y_train[:1000], shuffle=True)
+        train = text_formater.prepare_data(X_train, y_train, shuffle=True)
         test = text_formater.prepare_data(X_test, y_test)
         val = text_formater.prepare_data(X_val, y_val)
 
@@ -88,12 +88,12 @@ def get_train_probas(data_handler: Loader,
         # Saving validation and test logits.
         subfold_path = f"{output_dir}/sub_fold/{fold}"
         os.makedirs(subfold_path, exist_ok=True)
-        store_nparrays_in_aws(f"{subfold_path}/eval_logits", {"X_eval": eval_l,
+        store_nparrays_in_aws(f"{subfold_path}/eval_logits.npz", {"X_eval": eval_l,
                                                               "y_eval": y_val})
-        store_nparrays_in_aws(f"{subfold_path}/test_logits", {"X_test": test_l,
+        store_nparrays_in_aws(f"{subfold_path}/test_logits.npz", {"X_test": test_l,
                                                               "y_test": y_test})
         # Saving fold document's indexes.
-        store_nparrays_in_aws(f"{subfold_path}/align", {"align": idx_list[-1]})
+        store_nparrays_in_aws(f"{subfold_path}/align.npz", {"align": idx_list[-1]})
 
         # Saving fold's probabilities.
         probas.append(softmax(test_l, axis=1))
@@ -112,6 +112,6 @@ def get_train_probas(data_handler: Loader,
     # Resorting document's probabilities.
     sorted_idxs = np.hstack(idx_list).argsort()
     probas = probas[sorted_idxs]
-    probas_path = f"{output_dir}/train"
+    probas_path = f"{output_dir}/train.npz"
     # Saving document's proabilities.
     store_nparrays_in_aws(probas_path, {"X_train": probas, "y_train": y})
