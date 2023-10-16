@@ -77,11 +77,14 @@ def get_train_probas(data_handler: Loader,
         model = Transformer(**model_params)
 
         # Training model.
-        trainer = FitHelper().fit(model, train, val, model.max_epochs, model.seed)
+        fitter = FitHelper()
+        trainer = fitter.fit(model, train, val, model.max_epochs, model.seed)
 
         # Predicting.
-        test_l = np.vstack([ l["logits"] for l in trainer.predict(model, test) ])
-        eval_l = np.vstack([ l["logits"] for l in trainer.predict(model, val) ])
+        trainer.predict(model, test)
+        test_l = fitter.load_logits_batches()
+        trainer.predict(model, val)
+        eval_l = fitter.load_logits_batches()
 
         # Saving train and validation logits.
         subfold_path = f"{output_dir}/sub_fold/{fold}"

@@ -1,4 +1,7 @@
 import os
+from glob import glob
+from pathlib import Path
+from typing import Any, List, Sequence, Optional
 import numpy as np
 import torch
 from torch.optim import AdamW
@@ -6,9 +9,11 @@ from transformers import get_scheduler, AutoModelForSequenceClassification
 from transformers import AutoTokenizer
 from torch.utils.data import DataLoader, Dataset
 
-import pytorch_lightning as pl
+#import pytorch_lightning as pl
+import lightning.pytorch as pl
 from pytorch_lightning import seed_everything
 from pytorch_lightning.callbacks import ModelCheckpoint
+from lightning.pytorch.callbacks import BasePredictionWriter
 from torchmetrics import F1Score
 
 
@@ -124,33 +129,83 @@ class Transformer(pl.LightningModule):
         
         self.log_dict({"val_f1": self.f1(y_hat, batch["labels"])}, prog_bar=True)
 
-    """
-    def validation_epoch_end(self, outs):
 
-        self.f1.compute()
-    """    
-        
+    def predict_step(self, batch, batch_idx):
+
+        output = self(batch)
+        return {
+            "logits": output.logits
+        }
+
+    """
     def predict(self, batch):
 
         input_ids, attention_mask = batch["input_ids"], batch["attention_mask"]
         y_hat = self(input_ids, attention_mask)
         return y_hat.logits.cpu()
+    """
 
 class FitHelper:
 
     def fit(self, model, train, val, max_epochs, seed = 42):
-        
-        checkpoint_callback = ModelCheckpoint(dirpath='checkpoints/',
-                                              filename='{epoch}-{val_loss:.2f}',
-                                              save_top_k=0,
-                                              save_last=False)
 
         seed_everything(seed, workers=True)
         trainer = pl.Trainer(accelerator="gpu",
                              devices=1,
                              max_epochs=max_epochs,
-                             callbacks=checkpoint_callback)
+                             callbacks=[PredictionWriter()])
         
 
         trainer.fit(model, train_dataloaders=train, val_dataloaders=val)
         return trainer
+    
+    def load_logits_batches(self):
+
+        idxs = []
+        for f in glob(".preds/*"):
+            idxs.append(int(f.split('/')[1].split('.')[0]))
+        idxs.sort()
+
+        logits = []
+        for i in idxs:
+            logits.append(np.array(torch.load(f".preds/{i}.prd")))
+        logits = np.vstack(logits)
+        os.system("rm -rf .preds/*")
+        return logits
+
+class PredictionWriter(BasePredictionWriter):
+
+    def __init__(self):
+        super(PredictionWriter, self).__init__()
+        self.checkpoint_dir = ".preds/"
+        Path(self.checkpoint_dir).mkdir(parents=True, exist_ok=True)
+
+
+    def write_on_epoch_end(self,
+                           trainer: "pl.Trainer",
+                           pl_module: "pl.LightningModule",
+                           predictions: Sequence[Any],
+                           batch_indices: Optional[Sequence[Any]]) -> None:
+        pass
+
+    def write_on_batch_end(self,
+                           trainer,
+                           pl_module,
+                           prediction: Any,
+                           batch_indices: List[int],
+                           batch: Any,
+                           batch_idx: int,
+                           dataloader_idx: int):
+
+        predictions = []
+        for logit in prediction["logits"].tolist():
+            predictions.append(logit)
+
+        self._checkpoint(predictions, dataloader_idx, batch_idx)
+
+    def _checkpoint(self, predictions, dataloader_idx, batch_idx):
+        
+        torch.save(
+            predictions,
+            f"{self.checkpoint_dir}{batch_idx}.prd"
+        )

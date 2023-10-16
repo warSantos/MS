@@ -69,11 +69,13 @@ for (dataset, n_folds), (clf_name, clf_short_name) in iters:
             model = Transformer(**model_params)
 
             # Traning model.
-            trainer = FitHelper().fit(model, train, val, model.max_epochs, model.seed)
-            
-            # Predicting.
-            test_l = np.vstack([ l["logits"] for l in trainer.predict(model, test) ])
-            eval_l = np.vstack([ l["logits"] for l in trainer.predict(model, val) ])
+            fitter = FitHelper()
+            trainer = fitter.fit(model, train, val, model.max_epochs, model.seed)
+            trainer.predict(model, dataloaders=test)
+            # Loading predictions from disk to save at the right place.
+            test_l = fitter.load_logits_batches()
+            trainer.predict(model, dataloaders=val)
+            eval_l = fitter.load_logits_batches()
 
             # Saving outputs.
             np.savez(test_path, X_test=softmax(test_l, axis=1), y_test=y_test)
