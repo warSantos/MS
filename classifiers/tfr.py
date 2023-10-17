@@ -27,6 +27,7 @@ SEED = settings["SEED"]
 DATA_SOURCE = settings["DATA_SOURCE"]
 DATASETS = settings["DATASETS"]
 CLFS = settings["CLFS"]
+FOLD_LIST = settings["FOLDS"]
 DO_TEST = settings["DO_TEST"]
 DO_TRAIN = settings["DO_TRAIN"]
 n_sub_folds = settings["N_SUB_FOLDS"]
@@ -42,7 +43,7 @@ for (dataset, n_folds), (clf_name, clf_short_name) in iters:
     text_params = settings["TEXT_PARAMS"].copy()
     text_params["model_name"] = clf_name
     
-    for fold in np.arange(n_folds):
+    for fold in FOLD_LIST:
                 
         model_params = settings["MODEL_PARAMS"][clf_short_name].copy()
         model_params["num_labels"] = data_handler.num_labels
@@ -64,7 +65,7 @@ for (dataset, n_folds), (clf_name, clf_short_name) in iters:
             X_test, y_test = data_handler.get_X_y(fold, "test")
             X_val, y_val = data_handler.get_X_y(fold, "val")
             text_formater = TextFormater(**text_params)
-            train = text_formater.prepare_data(X_train, y_train, shuffle=True)
+            train = text_formater.prepare_data(X_train[:1000], y_train[:1000], shuffle=True)
             test = text_formater.prepare_data(X_test, y_test)
             val = text_formater.prepare_data(X_val, y_val)
 
@@ -73,11 +74,13 @@ for (dataset, n_folds), (clf_name, clf_short_name) in iters:
             model = Transformer(**model_params)
 
             # Traning model.
-            trainer = FitHelper().fit(model, train, val, model.max_epochs, model.seed)
-            
-            # Predicting.
-            test_l = np.vstack([ l["logits"] for l in trainer.predict(model, test) ])
-            eval_l = np.vstack([ l["logits"] for l in trainer.predict(model, val) ])
+            fitter = FitHelper()
+            trainer = fitter.fit(model, train, val, model.max_epochs, model.seed)
+            trainer.predict(model, dataloaders=test)
+            # Loading predictions from disk to save at the right place.
+            test_l = fitter.load_logits_batches()
+            trainer.predict(model, dataloaders=val)
+            eval_l = fitter.load_logits_batches()
 
             # Saving outputs.
             store_nparrays_in_aws(test_path, {"X_test": softmax(test_l, axis=1),
