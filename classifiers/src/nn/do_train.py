@@ -68,10 +68,9 @@ def get_train_probas(data_handler: Loader,
                                                                          test_index)
         idx_list.append(align_idx[test_index])
         
-        # Enconding text into input ids.
+        # Enconding train and val into input ids.
         text_formater = TextFormater(**text_params)
-        train = text_formater.prepare_data(X_train[:1000], y_train[:1000], shuffle=True)
-        test = text_formater.prepare_data(X_test, y_test)
+        train = text_formater.prepare_data(X_train, y_train, shuffle=True)
         val = text_formater.prepare_data(X_val, y_val)
 
         # Setting model parameters.
@@ -81,7 +80,10 @@ def get_train_probas(data_handler: Loader,
         # Training model.
         fitter = FitHelper()
         trainer = fitter.fit(model, train, val, model.max_epochs, model.seed)
-
+        
+        # Enconding test.
+        test = text_formater.prepare_data(X_test, y_test)
+        
         # Predicting.
         trainer.predict(model, test)
         test_l = fitter.load_logits_batches()
@@ -108,6 +110,8 @@ def get_train_probas(data_handler: Loader,
         scoring["micro"] = f1_score(y_test, y_pred, average="micro")
         print(
             f"\t\tSUB-FOLD {fold} - Macro: {scoring['macro']} - Micro {scoring['micro']}")
+
+        os.system("rm -rf lightning_logs")
 
     # Joining folds probabilities.
     probas = np.vstack(probas)

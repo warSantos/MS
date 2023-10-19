@@ -1,17 +1,9 @@
 import os
-
 import json
 from itertools import product
 
-import numpy as np
-import pandas as pd
 from scipy.special import softmax
 from sklearn.metrics import f1_score
-
-import torch
-import pytorch_lightning as pl
-from pytorch_lightning.callbacks import ModelCheckpoint
-from pytorch_lightning import seed_everything
 
 from src.nn.data_loader import Loader
 from src.nn.model import Transformer, TextFormater, FitHelper
@@ -55,20 +47,19 @@ for (dataset, n_folds), (clf_name, clf_short_name) in iters:
         eval_logits_path = f"{output_dir}/eval_logits.npz"
         test_logits_path = f"{output_dir}/test_logits.npz"
 
-        print(test_path)
+        print(f"OUTPUT PATH: {output_dir}")
         # Se este fold ainda não foi executado.
         if DO_TEST and not aws_path_exists(test_path):
             print("Builind test probabilities...")
             
             # Preparing data.
             X_train, y_train = data_handler.get_X_y(fold, "train")
-            X_test, y_test = data_handler.get_X_y(fold, "test")
             X_val, y_val = data_handler.get_X_y(fold, "val")
+            
             text_formater = TextFormater(**text_params)
-            train = text_formater.prepare_data(X_train[:1000], y_train[:1000], shuffle=True)
-            test = text_formater.prepare_data(X_test, y_test)
+            train = text_formater.prepare_data(X_train, y_train, shuffle=True)            
             val = text_formater.prepare_data(X_val, y_val)
-
+            
             # Setting model's parameters.
             model_params["len_data_loader"] = len(train)
             model = Transformer(**model_params)
@@ -76,6 +67,11 @@ for (dataset, n_folds), (clf_name, clf_short_name) in iters:
             # Traning model.
             fitter = FitHelper()
             trainer = fitter.fit(model, train, val, model.max_epochs, model.seed)
+                        
+            # Tokenizing the rest of the dataset.
+            X_test, y_test = data_handler.get_X_y(fold, "test")
+            test = text_formater.prepare_data(X_test, y_test)
+
             trainer.predict(model, dataloaders=test)
             # Loading predictions from disk to save at the right place.
             test_l = fitter.load_logits_batches()
@@ -94,6 +90,7 @@ for (dataset, n_folds), (clf_name, clf_short_name) in iters:
             y_pred = test_l.argmax(axis=1)
             print(f"Macro: {f1_score(y_test, y_pred, average='macro')}")
             print(f"Micro: {f1_score(y_test, y_pred, average='micro')}")
+            os.system("rm -rf lightning_logs")
             
         train_path = f"{output_dir}/train"
         # If train probabilities weren't computed yet.
@@ -107,4 +104,4 @@ for (dataset, n_folds), (clf_name, clf_short_name) in iters:
                              model_params,
                              text_params)
 
-aws_stop_instance()
+#aws_stop_instance()
