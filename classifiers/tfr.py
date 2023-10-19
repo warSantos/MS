@@ -104,4 +104,4 @@ for (dataset, n_folds), (clf_name, clf_short_name) in iters:
                              model_params,
                              text_params)
 
-#aws_stop_instance()
+aws_stop_instance()
