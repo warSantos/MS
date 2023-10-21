@@ -147,17 +147,12 @@ class Transformer(pl.LightningModule):
         
         self.log_dict({"val_f1": self.f1(y_hat, batch["labels"])}, prog_bar=True)
 
-    """
-    def validation_epoch_end(self, outs):
+    def predict_step(self, batch, batch_idx):
 
-        self.f1.compute()
-    """    
-        
-    def predict(self, batch):
-
-        input_ids, attention_mask = batch["input_ids"], batch["attention_mask"]
-        y_hat = self(input_ids, attention_mask)
-        return y_hat.logits.cpu()
+        output = self(batch)
+        return {
+            "logits": output.logits
+        }
 
 class FitHelper:
 
