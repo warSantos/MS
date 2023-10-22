@@ -57,13 +57,12 @@ for (dataset, n_folds), (clf_name, clf_short_name) in iters:
             
             # Preparing data.
             X_train, y_train = data_handler.get_X_y(fold, "train")
-            X_test, y_test = data_handler.get_X_y(fold, "test")
             X_val, y_val = data_handler.get_X_y(fold, "val")
+            
             text_formater = TextFormater(**text_params)
-            train = text_formater.prepare_data(X_train, y_train, shuffle=True)
-            test = text_formater.prepare_data(X_test, y_test)
+            train = text_formater.prepare_data(X_train, y_train, shuffle=True)            
             val = text_formater.prepare_data(X_val, y_val)
-
+            
             # Setting model's parameters.
             model_params["len_data_loader"] = len(train)
             model = Transformer(**model_params)
@@ -71,10 +70,18 @@ for (dataset, n_folds), (clf_name, clf_short_name) in iters:
             # Traning model.
             fitter = FitHelper()
             trainer = fitter.fit(model, train, val, model.max_epochs, model.seed)
+                        
+            # Tokenizing the test set.
+            X_test, y_test = data_handler.get_X_y(fold, "test")
+            test = text_formater.prepare_data(X_test, y_test)
+
+            # Predictin test.
             trainer.predict(model, dataloaders=test)
             # Loading predictions from disk to save at the right place.
             test_l = fitter.load_logits_batches()
+            # Predicting validation.
             trainer.predict(model, dataloaders=val)
+            # Loading predictions from disk to save at the right place.
             eval_l = fitter.load_logits_batches()
 
             # Saving outputs.

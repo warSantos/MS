@@ -15,6 +15,7 @@ def set_data_splits(X,
                     test_index):
 
     # Selecting train documents and labels.
+    print(len(X), np.max(train_index))
     X_train = get_doc_by_id(X, train_index)
     y_train = y[train_index]
 
@@ -53,7 +54,7 @@ def get_train_probas(data_handler: Loader,
     # For each fold.
     for fold in np.arange(n_splits):
         
-        sub_path = f"{data_handler.data_dir}/{data_handler.dataset}/splits/sub_splits/{fold}/split_4.pkl"
+        sub_path = f"{data_handler.data_dir}/{data_handler.dataset}/splits/sub_splits/{parent_fold}/split_4.pkl"
         sub_split = pd.read_pickle(sub_path)
 
         train_index = sub_split.train_idxs[fold]
@@ -66,10 +67,9 @@ def get_train_probas(data_handler: Loader,
                                                                          test_index)
         idx_list.append(align_idx[test_index])
         
-        # Enconding text into input ids.
+        # Enconding train and val into input ids.
         text_formater = TextFormater(**text_params)
         train = text_formater.prepare_data(X_train, y_train, shuffle=True)
-        test = text_formater.prepare_data(X_test, y_test)
         val = text_formater.prepare_data(X_val, y_val)
 
         # Setting model parameters.
@@ -79,7 +79,10 @@ def get_train_probas(data_handler: Loader,
         # Training model.
         fitter = FitHelper()
         trainer = fitter.fit(model, train, val, model.max_epochs, model.seed)
-
+        
+        # Enconding test.
+        test = text_formater.prepare_data(X_test, y_test)
+        
         # Predicting.
         trainer.predict(model, test)
         test_l = fitter.load_logits_batches()

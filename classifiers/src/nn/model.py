@@ -19,17 +19,35 @@ from torchmetrics import F1Score
 
 class CustomDataset(Dataset):
 
-    def __init__(self, x, y):
+    def __init__(self,
+                 x,
+                 y,
+                 tokenizer,
+                 max_length,
+                 padding,
+                 truncation,
+                 return_tensors="pt"):
 
         self.x = x
         self.y = y
+        self.tokenizer = tokenizer
+        self.max_length = max_length
+        self.padding = padding
+        self.truncation = truncation
+        self.return_tensors = return_tensors
 
     def __getitem__(self, idx):
-        
+
+        x = self.tokenizer(self.x[idx],
+                           max_length=self.max_length,
+                           padding=self.padding,
+                           truncation=self.truncation,
+                           return_tensors=self.return_tensors)
+
         return {
-            "input_ids": self.x["input_ids"][idx].clone().detach(),
-            "attention_mask": self.x["attention_mask"][idx].clone().detach(),
-            "token_type_ids": self.x["token_type_ids"][idx].clone().detach(),
+            "input_ids": x["input_ids"].reshape(-1).clone().detach(),
+            "attention_mask": x["attention_mask"].reshape(-1).clone().detach(),
+            "token_type_ids": x["token_type_ids"].reshape(-1).clone().detach(),
             "labels": torch.tensor(self.y[idx])}
 
     def __len__(self):
@@ -57,14 +75,15 @@ class TextFormater:
 
         # Applying text encoding.
         tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-        X_enc = tokenizer(X,
-                          max_length=self.max_length,
-                          padding=self.padding,
-                          truncation=self.truncation,
-                          return_tensors="pt")
-
+        
         # Formating dataset on Pytorch manners.
-        data = CustomDataset(X_enc, y)
+        data = CustomDataset(X,
+                             y,
+                             tokenizer,
+                             self.max_length,
+                             self.padding,
+                             self.truncation,
+                             "pt")
 
         # Splitting data in batches.
         data_loader = DataLoader(data,
@@ -136,14 +155,6 @@ class Transformer(pl.LightningModule):
         return {
             "logits": output.logits
         }
-
-    """
-    def predict(self, batch):
-
-        input_ids, attention_mask = batch["input_ids"], batch["attention_mask"]
-        y_hat = self(input_ids, attention_mask)
-        return y_hat.logits.cpu()
-    """
 
 class FitHelper:
 
