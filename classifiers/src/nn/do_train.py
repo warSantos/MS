@@ -54,12 +54,12 @@ def get_train_probas(data_handler: Loader,
     # For each fold.
     for fold in np.arange(n_splits):
         
-        pickle_path = f"{data_handler.data_dir}/{data_handler.dataset}/splits/sub_splits/{fold}/split_4.pkl"
+        pickle_path = f"{data_handler.data_dir}/{data_handler.dataset}/splits/sub_splits/{parent_fold}/split_4.pkl"
         data = load_file_from_aws(pickle_path)
         sub_split = pd.read_pickle(data)
 
-        train_index = sub_split.train_idxs[fold]
-        test_index = sub_split.test_idxs[fold]
+        train_index = sub_split.iloc[fold].train_idxs
+        test_index = sub_split.iloc[fold].test_idxs
 
         # Spliting data.
         X_train, X_test, X_val, y_train, y_test, y_val = set_data_splits(X,
