@@ -94,7 +94,7 @@ for (dataset, n_folds), (clf_name, clf_short_name) in iters:
             
         train_path = f"{output_dir}/train"
         # If train probabilities weren't computed yet.
-        if DO_TRAIN and not aws_path_exists(train_path):
+        if DO_TRAIN:
             print("Builind train probabilities...")
             # Computing train probabilities.
             get_train_probas(data_handler,
