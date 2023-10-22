@@ -15,7 +15,6 @@ def set_data_splits(X,
                     test_index):
 
     # Selecting train documents and labels.
-    print(len(X), np.max(train_index))
     X_train = get_doc_by_id(X, train_index)
     y_train = y[train_index]
 
