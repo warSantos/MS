@@ -14,7 +14,7 @@ def apply_attention_format(X: np.ndarray, n_times: int):
 
     n_docs, dim = X.shape
     X_att = np.tile(X, n_times)
-    return X_att.reshape(n_docs, dim, -1)
+    return X_att.reshape(n_docs, -1, dim)
 
 def load_embeddings(data_source: str,
                     dataset: str,
@@ -34,20 +34,32 @@ def load_embeddings(data_source: str,
 
     return train, test
 
+def to_attention(arrays: list):
 
+    n_docs = len(arrays[0])
+    dim = arrays[0].shape[1]
+    a = np.hstack(arrays)
+    return a.reshape(n_docs, -1, dim)
 
 def load_mfs(data_source: str,
              dataset: str,
              clfs: list,
-             fold: int,
-             n_folds: int,
-             train_test: str):
+             fold: int):
     
-    base = f"{data_source}/representations/{dataset}/{n_folds}_folds/bert/{fold}"
-    attn_feats = np.load(f"{base}/{train_test}.npz")[f"X_{train_test}"]
-    n_docs, dim = attn_feats.shape
-    attn_feats = np.tile(attn_feats, 7)
-    return attn_feats.reshape(n_docs, dim, -1)
+    train, test = [], []
+    mf_type = "meta_features/error_estimation/probas-based"
+    clf_sufix = '/'.join(sorted([ f"{c[0]}_{c[1]}" for c in clfs ]))
+    for clf, _ in clfs:
+        mf_path = f"{data_source}/{mf_type}/{dataset}/{fold}/{clf_sufix}/{clf}/feats.npz"
+        loader = np.load(mf_path)
+        train.append(loader["train"])
+        test.append(loader["test"])
+    train = to_attention(train)
+    test = to_attention(test)
+    return train, test
+
+
+    
 
 
 def get_error_est_mfs(data_source: str,

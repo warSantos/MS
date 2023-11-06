@@ -247,7 +247,7 @@ class DualOptmizerML(BaseMetaLayer):
 
     def training_step(self, batch):
 
-        # self.attn_encoder.is_train = True
+        # self.attn_encoder.is_train = True.
         x, y, attn_x, attn_y = batch["x"], batch["y"], batch["attn_x"], batch["attn_y"]
 
         # Getting optmizers.
