@@ -106,7 +106,7 @@ for dataset_setup, clf, rep in iterations:
         
         X_test_path = f"{output_dir}/test.npz"
         
-        if DO_TEST and not aws_path_exists(X_test_path):
+        if DO_TEST:# and not aws_path_exists(X_test_path):
 
             estimator = execute_optimization(
                 classifier_name=clf,
