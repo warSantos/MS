@@ -30,10 +30,14 @@ def load_reps_from_aws(file_path: str,
         with BytesIO(response['Body'].read()) as fd:
             fd.seek(0)
             loader = np.load(fd, allow_pickle=True)
-            return { 
+            data = { 
                 f"X_{train_test}": loader[f"X_{train_test}"],
                 f"y_{train_test}": loader[f"y_{train_test}"]
             }
+            if "fold_indexes" in loader:
+                data["fold_indexes"] = loader["fold_indexes"]
+            return data
+        
     except Exception as e:
         print("Error:", e)
 

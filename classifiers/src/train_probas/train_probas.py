@@ -26,6 +26,7 @@ def build_train_probas(
 
     probas = []
     calib_probas = []
+    indexes = []
 
     for fold in range(n_splits):
 
@@ -33,13 +34,14 @@ def build_train_probas(
         train_loader = load_reps_from_aws(f"{input_dir}/train.npz", "train")
         test_loader = load_reps_from_aws(f"{input_dir}/test.npz", "test")
         
-        try:
-            X_train, X_test = replace_nan(train_loader["X_train"].tolist(), rep), replace_nan(test_loader["X_test"].tolist(), rep)
-        except:
+        if rep == "tr":
+            X_train, X_test = train_loader["X_train"].tolist(), test_loader["X_test"].tolist()
+        else:
             X_train, X_test = replace_nan(train_loader["X_train"], rep), replace_nan(test_loader["X_test"], rep)
         
-
         y_train, y_test = fix_labels(train_loader["y_train"]), fix_labels(test_loader["y_test"])
+        
+        indexes.append(test_loader["fold_indexes"])
 
         # Applying oversampling when it is needed.
         for c in set(y_test) - set(y_train):
@@ -101,10 +103,12 @@ def build_train_probas(
                 axis=1), calib_output_dir, fold)
             calib_probas.append(c_probas)
 
-    probas = np.vstack(probas)
+    indexes = np.hstack(indexes)
+    sort = indexes.argsort()
+    probas = np.vstack(probas)[sort]
 
     if do_calib:
-        calib_probas = np.vstack(calib_probas)
+        calib_probas = np.vstack(calib_probas)[sort]
         return {"probas": probas,
                 "calib_probas": calib_probas}
 
